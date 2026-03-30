@@ -1,4 +1,4 @@
-import { PHOTO_CATEGORIES, STATUS_META, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
+import { STATUS_META, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
 import { escapeHtml, formatCompactDateTime, formatDateTime, formatFileSize, icon } from "../lib/helpers.js";
 import { HistoryTimeline } from "./HistoryTimeline.js";
 import { PhotoUploader } from "./PhotoUploader.js";
@@ -27,44 +27,37 @@ function renderMainTab(task, permissions) {
         <input name="projectName" value="${escapeHtml(task.projectName)}" ${permissions.canEditCore ? "" : "disabled"} />
       </div>
       <div class="field">
-        <span>Project ID</span>
-        <input name="projectId" value="${escapeHtml(task.projectId)}" ${permissions.canEditCore ? "" : "disabled"} />
+        <span>SR ID</span>
+        <input name="srId" value="${escapeHtml(task.srId)}" ${permissions.canEditCore ? "" : "disabled"} />
       </div>
       <div class="field">
-        <span>SR / BID</span>
-        <input name="serviceRequestId" value="${escapeHtml(task.serviceRequestId)}" ${permissions.canEditCore ? "" : "disabled"} />
+        <span>BID</span>
+        <input name="bid" value="${escapeHtml(task.bid)}" ${permissions.canEditCore ? "" : "disabled"} />
       </div>
       <div class="field">
         <span>Πόρος / Team</span>
         <input name="resourceTeam" value="${escapeHtml(task.resourceTeam)}" ${permissions.canEditCore ? "" : "disabled"} />
       </div>
       <div class="field">
-        <span>Αναλήφθηκε από partner</span>
+        <span>Ανατέθηκε σε συνεργάτη</span>
         <select name="assignedUserId" ${permissions.canManageAssignment ? "" : "disabled"}>
-          <option value="">Δεν έχει αναληφθεί</option>
-          ${TECHNICIANS.filter((technician) => task.allowedTechnicianIds.includes(technician.id))
-            .map((technician) => `<option value="${technician.id}"${task.assignedUserId === technician.id ? " selected" : ""}>${escapeHtml(technician.name)}</option>`)
-            .join("")}
+          <option value="">Δεν έχει ανατεθεί</option>
+          ${TECHNICIANS.map(
+            (technician) => `<option value="${technician.id}"${task.assignedUserId === technician.id ? " selected" : ""}>${escapeHtml(technician.name)}</option>`
+          ).join("")}
         </select>
       </div>
-      <div class="field field--wide">
-        <span>Επιτρεπόμενοι partners</span>
-        <div class="checkbox-grid checkbox-grid--wide">
-          ${TECHNICIANS.map(
-            (technician) => `
-              <label class="checkbox-pill${task.allowedTechnicianIds.includes(technician.id) ? " is-selected" : ""}${permissions.canManageAssignment ? "" : " is-readonly"}">
-                <input
-                  type="checkbox"
-                  name="allowedTechnicianIds"
-                  value="${escapeHtml(technician.id)}"
-                  ${task.allowedTechnicianIds.includes(technician.id) ? "checked" : ""}
-                  ${permissions.canManageAssignment ? "" : "disabled"}
-                />
-                <span>${escapeHtml(technician.name)}</span>
-              </label>
-            `
-          ).join("")}
-        </div>
+      <div class="field">
+        <span>Ονοματεπώνυμο πελάτη</span>
+        <input name="customerName" value="${escapeHtml(task.customerName)}" ${permissions.canEditCore ? "" : "disabled"} />
+      </div>
+      <div class="field">
+        <span>Κινητό</span>
+        <input name="mobilePhone" value="${escapeHtml(task.mobilePhone)}" ${permissions.canEditCore ? "" : "disabled"} />
+      </div>
+      <div class="field">
+        <span>Σταθερό</span>
+        <input name="landlinePhone" value="${escapeHtml(task.landlinePhone)}" ${permissions.canEditCore ? "" : "disabled"} />
       </div>
       <div class="field">
         <span>Διεύθυνση</span>
@@ -314,13 +307,7 @@ function renderWorkflowActions(task, permissions, validationComment) {
   return `
     <div class="detail-side__section">
       <h3>Workflow actions</h3>
-      <p class="muted">Η ροή ακολουθεί το lifecycle του PDF: δημιουργία, ανάθεση, εκτέλεση, upload, έλεγχος, ολοκλήρωση.</p>
-
-      ${
-        permissions.canClaimTask
-          ? `<button class="button" data-workflow-action="claim" data-task-id="${escapeHtml(task.id)}">Ανάληψη εργασίας</button>`
-          : ""
-      }
+      <p class="muted">Ο admin δημιουργεί και αναθέτει. Ο συνεργάτης εκτελεί και παραδίδει για έλεγχο.</p>
 
       ${
         permissions.canStart
@@ -360,7 +347,7 @@ function renderWorkflowActions(task, permissions, validationComment) {
   `;
 }
 
-export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, currentUserName, validationComment, allowedTechnicianNames }) {
+export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, currentUserName, validationComment }) {
   const tabs = [
     ["main", "Κύριος"],
     ["photos", "Φωτογραφίες"],
@@ -384,7 +371,7 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
           <div>
             <p class="eyebrow">Task Workspace</p>
             <h1>${escapeHtml(task.title)}</h1>
-            <p>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(task.projectId)}</p>
+            <p>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(task.srId)}</p>
           </div>
           <div class="detail-summary">
             <article><span>Ρόλος</span><strong>${escapeHtml(currentRoleLabel)}</strong></article>
@@ -429,9 +416,11 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
             <h3>Execution snapshot</h3>
             <dl class="mini-spec">
               <div><dt>Project</dt><dd>${escapeHtml(task.projectName)}</dd></div>
+              <div><dt>SR ID</dt><dd>${escapeHtml(task.srId)}</dd></div>
+              <div><dt>BID</dt><dd>${escapeHtml(task.bid)}</dd></div>
+              <div><dt>Πελάτης</dt><dd>${escapeHtml(task.customerName || "-")}</dd></div>
               <div><dt>Team</dt><dd>${escapeHtml(task.resourceTeam)}</dd></div>
-              <div><dt>Partner</dt><dd>${escapeHtml(task.assignedUserName || "Open pool")}</dd></div>
-              <div><dt>Πρόσβαση</dt><dd>${escapeHtml(allowedTechnicianNames.join(", ") || "-")}</dd></div>
+              <div><dt>Partner</dt><dd>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</dd></div>
               <div><dt>Window</dt><dd>${task.startDate ? formatCompactDateTime(task.startDate) : "Δεν ορίστηκε"}</dd></div>
               <div><dt>API</dt><dd>${escapeHtml(task.flags.apiStatus)}</dd></div>
               <div><dt>Smart readiness</dt><dd>${escapeHtml(task.flags.smartReadiness)}</dd></div>

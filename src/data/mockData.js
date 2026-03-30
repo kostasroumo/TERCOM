@@ -10,19 +10,19 @@ export const STATUS_META = {
     label: "Ανατέθηκε",
     tone: "assigned",
     icon: "assigned",
-    hint: "Χρειάζεται οργάνωση και προγραμματισμό"
+    hint: "Χρειάζεται οργάνωση και ανάθεση"
   },
   scheduled: {
     label: "Προγραμματισμένη",
     tone: "scheduled",
     icon: "scheduled",
-    hint: "Έχει οριστεί συνεργείο και χρονικό παράθυρο"
+    hint: "Έχει οριστεί συνεργάτης και χρονικό παράθυρο"
   },
   in_progress: {
     label: "Σε εξέλιξη",
     tone: "in-progress",
     icon: "in_progress",
-    hint: "Το συνεργείο δουλεύει στο πεδίο"
+    hint: "Ο συνεργάτης δουλεύει στο πεδίο"
   },
   pending_validation: {
     label: "Για επικύρωση",
@@ -106,25 +106,27 @@ const tasks = [
     status: "scheduled",
     address: "Λεωφ. Κηφισίας 124",
     city: "Αθήνα",
-    projectId: "PRJ-ATH-2104",
-    serviceRequestId: "SR-74273960",
+    customerName: "Ελένη Παπαδοπούλου",
+    mobilePhone: "6944123456",
+    landlinePhone: "2106987452",
+    srId: "SR-74273960",
+    bid: "BID-ATH-2104",
     projectName: "North Athens Fiber Readiness",
     resourceTeam: "Fiber Survey Crew A",
-    allowedTechnicianIds: ["partner-1", "partner-2"],
     assignedUserId: "partner-1",
     assignedUserName: "Συνεργάτης 1",
-    startDate: "2026-03-27T08:30",
-    endDate: "2026-03-27T10:30",
+    startDate: "2026-03-30T08:30",
+    endDate: "2026-03-30T10:30",
     notes:
       "Επιβεβαίωση πρόσβασης roof cabinet και φωτογράφιση κάθετου οδεύματος. Χρειάζεται επικοινωνία με διαχειριστή κτιρίου πριν την άφιξη.",
     createdAt: "2026-03-20T09:15",
     createdBy: "Admin 1",
-    updatedAt: "2026-03-25T12:05",
+    updatedAt: "2026-03-29T12:05",
     updatedBy: "Admin 1",
     flags: {
       apiStatus: "SYNCED",
       validationLock: false,
-      openIssues: true,
+      openIssues: false,
       smartReadiness: "Σε αναμονή πρόσβασης"
     },
     photos: [
@@ -133,7 +135,7 @@ const tasks = [
         name: "building-entry.jpg",
         category: "before",
         uploadedBy: "Admin 1",
-        uploadedAt: "2026-03-25T12:06",
+        uploadedAt: "2026-03-29T12:06",
         preview: placeholderData("Building entry", "#f6a623")
       }
     ],
@@ -144,7 +146,7 @@ const tasks = [
         type: "application/pdf",
         size: 284320,
         uploadedBy: "Admin 1",
-        uploadedAt: "2026-03-25T12:10"
+        uploadedAt: "2026-03-29T12:10"
       }
     ],
     history: [
@@ -158,9 +160,9 @@ const tasks = [
       {
         id: "HIST-2",
         author: "Admin 1",
-        at: "2026-03-25T12:05",
-        summary: "Προγραμματισμός",
-        details: "Ορίστηκε partner και χρονικό παράθυρο επίσκεψης."
+        at: "2026-03-29T12:05",
+        summary: "Ανάθεση και προγραμματισμός",
+        details: "Ορίστηκε συνεργάτης και χρονικό παράθυρο επίσκεψης."
       }
     ],
     materials: [
@@ -178,25 +180,27 @@ const tasks = [
   },
   {
     id: "TASK-24032",
-    title: "Εγκατάσταση εξοπλισμού οπτικής ίνας σε ΜΔU",
+    title: "Εγκατάσταση εξοπλισμού οπτικής ίνας σε MDU",
     type: "installation",
     status: "in_progress",
     address: "Εθνικής Αντιστάσεως 45",
     city: "Κομοτηνή",
-    projectId: "PRJ-KOM-8760",
-    serviceRequestId: "SR-73318842",
+    customerName: "Ιωάννης Καραλής",
+    mobilePhone: "6977654321",
+    landlinePhone: "2531022455",
+    srId: "SR-73318842",
+    bid: "BID-KOM-8760",
     projectName: "Komotini MDU Rollout",
     resourceTeam: "Smart Readiness Squad",
-    allowedTechnicianIds: ["partner-1", "partner-2"],
     assignedUserId: "partner-2",
     assignedUserName: "Συνεργάτης 2",
-    startDate: "2026-03-27T09:00",
-    endDate: "2026-03-27T13:30",
+    startDate: "2026-03-30T09:00",
+    endDate: "2026-03-30T13:30",
     notes:
       "Το συνεργείο ξεκίνησε την τοποθέτηση κατανεμητή. Απαιτείται τελική φωτογράφιση patch panel και ενημέρωση για τις οδεύσεις.",
     createdAt: "2026-03-18T08:45",
     createdBy: "Admin 1",
-    updatedAt: "2026-03-27T09:12",
+    updatedAt: "2026-03-30T09:12",
     updatedBy: "Συνεργάτης 2",
     flags: {
       apiStatus: "LOCAL-ONLY",
@@ -210,7 +214,7 @@ const tasks = [
         name: "cabinet-progress.jpg",
         category: "equipment",
         uploadedBy: "Συνεργάτης 2",
-        uploadedAt: "2026-03-27T09:14",
+        uploadedAt: "2026-03-30T09:14",
         preview: placeholderData("Cabinet progress", "#8f95ff")
       }
     ],
@@ -226,9 +230,9 @@ const tasks = [
       {
         id: "HIST-4",
         author: "Συνεργάτης 2",
-        at: "2026-03-27T09:12",
+        at: "2026-03-30T09:12",
         summary: "Έναρξη εκτέλεσης",
-        details: "Το συνεργείο σημείωσε την εργασία ως σε εξέλιξη."
+        details: "Ο συνεργάτης σημείωσε την εργασία ως σε εξέλιξη."
       }
     ],
     materials: [
@@ -251,20 +255,22 @@ const tasks = [
     status: "assigned",
     address: "Πίνδου 19",
     city: "Θεσσαλονίκη",
-    projectId: "PRJ-TH-1190",
-    serviceRequestId: "SR-94533210",
+    customerName: "Χρήστος Νικολάου",
+    mobilePhone: "6981122334",
+    landlinePhone: "",
+    srId: "SR-94533210",
+    bid: "BID-TH-1190",
     projectName: "North Grid Stabilisation",
     resourceTeam: "Repair Cell North",
-    allowedTechnicianIds: ["partner-1", "partner-2"],
     assignedUserId: "",
     assignedUserName: "",
     startDate: "",
     endDate: "",
     notes:
-      "Ο πελάτης αναφέρει διακοπές σύνδεσης τις απογευματινές ώρες. Η εργασία είναι ανοιχτή σε επιτρεπόμενους partners για ανάληψη.",
-    createdAt: "2026-03-27T07:25",
+      "Ο πελάτης αναφέρει διακοπές σύνδεσης τις απογευματινές ώρες. Η εργασία περιμένει ανάθεση από τον admin.",
+    createdAt: "2026-03-30T07:25",
     createdBy: "Admin 1",
-    updatedAt: "2026-03-27T07:26",
+    updatedAt: "2026-03-30T07:26",
     updatedBy: "Admin 1",
     flags: {
       apiStatus: "SYNCED",
@@ -278,9 +284,9 @@ const tasks = [
       {
         id: "HIST-5",
         author: "Admin 1",
-        at: "2026-03-27T07:25",
-        summary: "Δημιουργία open εργασίας",
-        details: "Η εργασία δημιουργήθηκε και άνοιξε σε επιτρεπόμενο pool partners."
+        at: "2026-03-30T07:25",
+        summary: "Δημιουργία εργασίας",
+        details: "Η εργασία δημιουργήθηκε και αναμένει ανάθεση σε συνεργάτη."
       }
     ],
     materials: [],
@@ -298,20 +304,22 @@ const tasks = [
     status: "pending_validation",
     address: "Μακεδονομάχων 8",
     city: "Πάτρα",
-    projectId: "PRJ-PAT-5511",
-    serviceRequestId: "SR-80221490",
+    customerName: "Μαρία Σταθοπούλου",
+    mobilePhone: "6977001100",
+    landlinePhone: "2610223344",
+    srId: "SR-80221490",
+    bid: "BID-PAT-5511",
     projectName: "Patra Vertical Fiber Upgrade",
     resourceTeam: "Fiber Survey Crew A",
-    allowedTechnicianIds: ["partner-1"],
     assignedUserId: "partner-1",
     assignedUserName: "Συνεργάτης 1",
-    startDate: "2026-03-26T11:00",
-    endDate: "2026-03-26T13:15",
+    startDate: "2026-03-29T11:00",
+    endDate: "2026-03-29T13:15",
     notes:
       "Η εγκατάσταση ολοκληρώθηκε και το πακέτο παραδόθηκε για επικύρωση με πλήρη φωτογραφική τεκμηρίωση.",
     createdAt: "2026-03-21T10:05",
     createdBy: "Admin 1",
-    updatedAt: "2026-03-26T14:02",
+    updatedAt: "2026-03-29T14:02",
     updatedBy: "Συνεργάτης 1",
     flags: {
       apiStatus: "SYNCED",
@@ -325,7 +333,7 @@ const tasks = [
         name: "riser-after.jpg",
         category: "after",
         uploadedBy: "Συνεργάτης 1",
-        uploadedAt: "2026-03-26T13:55",
+        uploadedAt: "2026-03-29T13:55",
         preview: placeholderData("Riser after", "#1fc879")
       }
     ],
@@ -336,14 +344,14 @@ const tasks = [
         type: "application/pdf",
         size: 622120,
         uploadedBy: "Συνεργάτης 1",
-        uploadedAt: "2026-03-26T13:58"
+        uploadedAt: "2026-03-29T13:58"
       }
     ],
     history: [
       {
         id: "HIST-6",
         author: "Συνεργάτης 1",
-        at: "2026-03-26T14:02",
+        at: "2026-03-29T14:02",
         summary: "Παράδοση για επικύρωση",
         details: "Η εργασία μεταφέρθηκε στο στάδιο ελέγχου."
       }
@@ -365,11 +373,13 @@ const tasks = [
     status: "completed",
     address: "25ης Μαρτίου 61",
     city: "Ηράκλειο",
-    projectId: "PRJ-HER-7734",
-    serviceRequestId: "SR-91004500",
+    customerName: "Αθανάσιος Γεωργίου",
+    mobilePhone: "6945001122",
+    landlinePhone: "",
+    srId: "SR-91004500",
+    bid: "BID-HER-7734",
     projectName: "Heraklion Stabilization Wave 3",
     resourceTeam: "Repair Cell North",
-    allowedTechnicianIds: ["partner-2"],
     assignedUserId: "partner-2",
     assignedUserName: "Συνεργάτης 2",
     startDate: "2026-03-24T08:15",
@@ -423,20 +433,22 @@ const tasks = [
     status: "assigned",
     address: "Σπύρου Λούη 12",
     city: "Λάρισα",
-    projectId: "PRJ-LAR-3900",
-    serviceRequestId: "SR-81223010",
+    customerName: "Κατερίνα Ράλλη",
+    mobilePhone: "6933112244",
+    landlinePhone: "2410556677",
+    srId: "SR-81223010",
+    bid: "BID-LAR-3900",
     projectName: "Larisa Mapping Sprint",
     resourceTeam: "Fiber Survey Crew A",
-    allowedTechnicianIds: ["partner-1", "partner-2"],
     assignedUserId: "",
     assignedUserName: "",
     startDate: "",
     endDate: "",
     notes:
-      "Νέα αυτοψία για χαρτογράφηση υφιστάμενων οδεύσεων. Το slot επίσκεψης θα κλειδωθεί από admin.",
-    createdAt: "2026-03-27T08:00",
+      "Νέα αυτοψία για χαρτογράφηση υφιστάμενων οδεύσεων. Το slot επίσκεψης και η ανάθεση θα γίνουν από admin.",
+    createdAt: "2026-03-30T08:00",
     createdBy: "Admin 1",
-    updatedAt: "2026-03-27T08:00",
+    updatedAt: "2026-03-30T08:00",
     updatedBy: "Admin 1",
     flags: {
       apiStatus: "PENDING",
@@ -450,9 +462,9 @@ const tasks = [
       {
         id: "HIST-8",
         author: "Admin 1",
-        at: "2026-03-27T08:00",
+        at: "2026-03-30T08:00",
         summary: "Δημιουργία εργασίας",
-        details: "Η εργασία καταχωρήθηκε στο dispatch queue."
+        details: "Η εργασία καταχωρήθηκε και περιμένει ανάθεση."
       }
     ],
     materials: [],
@@ -461,64 +473,6 @@ const tasks = [
     ],
     safety: [
       { id: "SAFE-8", item: "Υπόγειος χώρος", status: "warning", note: "Απαιτείται φωτισμός" }
-    ]
-  },
-  {
-    id: "TASK-24037",
-    title: "Επιτόπια επιθεώρηση για τελικό sign-off",
-    type: "installation",
-    status: "pending_validation",
-    address: "Καποδιστρίου 5",
-    city: "Βόλος",
-    projectId: "PRJ-VOL-1182",
-    serviceRequestId: "SR-81100420",
-    projectName: "Volos Activation Batch",
-    resourceTeam: "Smart Readiness Squad",
-    allowedTechnicianIds: ["partner-1", "partner-2"],
-    assignedUserId: "partner-1",
-    assignedUserName: "Συνεργάτης 1",
-    startDate: "2026-03-26T15:00",
-    endDate: "2026-03-26T17:00",
-    notes:
-      "Ολοκληρώθηκε η εγκατάσταση ONT. Περιμένει έλεγχο admin για την τελική επιβεβαίωση του φακέλου.",
-    createdAt: "2026-03-23T09:40",
-    createdBy: "Admin 1",
-    updatedAt: "2026-03-26T17:20",
-    updatedBy: "Συνεργάτης 1",
-    flags: {
-      apiStatus: "SYNCED",
-      validationLock: true,
-      openIssues: true,
-      smartReadiness: "ΝΑΙ, εκκρεμεί τελικό sign-off"
-    },
-    photos: [
-      {
-        id: "PHOTO-5",
-        name: "after-rack.jpg",
-        category: "after",
-        uploadedBy: "Συνεργάτης 1",
-        uploadedAt: "2026-03-26T17:10",
-        preview: placeholderData("After rack", "#ff9f43")
-      }
-    ],
-    files: [],
-    history: [
-      {
-        id: "HIST-9",
-        author: "Συνεργάτης 1",
-        at: "2026-03-26T17:20",
-        summary: "Υποβολή σε admin review",
-        details: "Έγινε αποστολή πακέτου με ανοιχτό παρατηρητήριο για minor issue."
-      }
-    ],
-    materials: [
-      { id: "MAT-7", code: "PATCH-01", description: "Patch cords", quantity: 6, unit: "τεμ." }
-    ],
-    floors: [
-      { id: "FL-9", level: "4ος", units: 2, access: "Ελεύθερη", riser: "Δυτικό shaft" }
-    ],
-    safety: [
-      { id: "SAFE-9", item: "Σήμανση καλωδίων", status: "warning", note: "Λείπουν 2 labels" }
     ]
   }
 ];
@@ -539,7 +493,9 @@ export function createInitialState() {
     ui: {
       activeTab: "main",
       showCreateModal: false,
-      validationComment: ""
+      validationComment: "",
+      exportReturnRoute: "#/dashboard",
+      reportAutoPrint: false
     },
     tasks: deepClone(tasks)
   };

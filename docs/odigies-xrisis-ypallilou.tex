@@ -1,0 +1,304 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+
+\setmainlanguage{greek}
+\setotherlanguage{english}
+\setmainfont{Arial}
+\newfontfamily\greekfont{Arial}
+
+\definecolor{ink}{HTML}{163447}
+\definecolor{soft}{HTML}{5F7888}
+\definecolor{line}{HTML}{D6E1E8}
+\definecolor{accent}{HTML}{1F6F7E}
+\definecolor{warnbg}{HTML}{FFF7E4}
+\definecolor{warnline}{HTML}{F3B533}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent,
+  urlcolor=accent,
+  pdftitle={Οδηγίες Χρήσης Εφαρμογής Field Operations},
+  pdfauthor={Codex}
+}
+
+\titleformat{\section}{\Large\bfseries\color{ink}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{ink}}{\thesubsection.}{0.6em}{}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist[itemize]{itemsep=0.35em, topsep=0.35em}
+\setlist[enumerate]{itemsep=0.35em, topsep=0.35em}
+\renewcommand{\arraystretch}{1.35}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textcolor{soft}{Field Operations Manual}}
+\fancyhead[R]{\textcolor{soft}{\thepage}}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{line}\leaders\hrule height \headrulewidth\hfill}}
+
+\newcommand{\infobox}[1]{
+  \vspace{0.5em}
+  \fcolorbox{line}{white}{
+    \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
+      #1
+    }
+  }
+  \vspace{0.5em}
+}
+
+\newcommand{\warningbox}[1]{
+  \vspace{0.5em}
+  {\setlength{\fboxrule}{1pt}
+  \fcolorbox{warnline}{warnbg}{
+    \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{
+      \textbf{Σημαντικό:} #1
+    }
+  }}
+  \vspace{0.5em}
+}
+
+\begin{document}
+
+{\small\textcolor{soft}{Field Operations Manual}}
+
+{\huge\bfseries\color{ink} Οδηγίες Χρήσης για Υπάλληλο}
+
+Το παρόν εγχειρίδιο εξηγεί βήμα βήμα πώς χρησιμοποιείται η εφαρμογή διαχείρισης εργασιών πεδίου. Είναι γραμμένο για καθημερινή χρήση από υπάλληλο ή συνεργάτη που πρέπει να βλέπει εργασίες, να τις αναλαμβάνει, να τις ενημερώνει και να τις προωθεί σωστά μέσα στο workflow.
+
+\vspace{0.7em}
+
+\begin{tabularx}{\linewidth}{|>{\raggedright\arraybackslash}p{0.29\linewidth}|>{\raggedright\arraybackslash}p{0.33\linewidth}|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Ρόλοι συστήματος} & \textbf{Βασική λειτουργία} & \textbf{Workflow} \\
+\hline
+Admin 1, Συνεργάτης 1, Συνεργάτης 2 & Διαχείριση και παρακολούθηση τεχνικών εργασιών πεδίου & Ανατέθηκε $\rightarrow$ Προγραμματισμένη $\rightarrow$ Σε εξέλιξη $\rightarrow$ Για επικύρωση $\rightarrow$ Ολοκληρωμένη \\
+\hline
+\end{tabularx}
+
+\warningbox{Η εφαρμογή είναι prototype χωρίς database. Τα δεδομένα αποθηκεύονται τοπικά στον browser του χρήστη. Αυτό σημαίνει ότι χρησιμοποιείται για δοκιμή, παρουσίαση, έλεγχο ροής και όχι για τελική παραγωγική χρήση.}
+
+\section{Τι κάνει η εφαρμογή}
+
+Η εφαρμογή χρησιμοποιείται για να οργανώνει τεχνικές εργασίες πεδίου. Κάθε εργασία έχει στοιχεία έργου, διεύθυνση, υπεύθυνο συνεργάτη, προγραμματισμό, φωτογραφίες, αρχεία, υλικά, ιστορικό και τεχνικά metadata.
+
+Ο βασικός στόχος είναι να μην υπάρχει μόνο μια απλή λίστα εργασιών, αλλά πλήρης έλεγχος του κύκλου ζωής κάθε εργασίας από τη δημιουργία μέχρι την έγκριση και το κλείσιμο.
+
+\section{Ποιοι ρόλοι υπάρχουν}
+
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.2\linewidth}|>{\raggedright\arraybackslash}p{0.72\linewidth}|}
+\hline
+\textbf{Ρόλος} & \textbf{Τι μπορεί να κάνει} \\
+\hline
+Admin 1 & Βλέπει όλες τις εργασίες, δημιουργεί νέες, ορίζει ποιοι συνεργάτες έχουν πρόσβαση, κάνει αλλαγές, εγκρίνει ή απορρίπτει. \\
+\hline
+Συνεργάτης 1 & Βλέπει μόνο τις εργασίες που του επιτρέπει ο admin ή όσες έχει ήδη αναλάβει ο ίδιος. \\
+\hline
+Συνεργάτης 2 & Έχει την ίδια λογική με τον Συνεργάτη 1 και δουλεύει μόνο μέσα στο δικό του επιτρεπόμενο scope. \\
+\hline
+\end{longtable}
+
+\infobox{Η επιλογή ρόλου και χρήστη γίνεται από το πάνω δεξιά μέρος της εφαρμογής. Δεν υπάρχει login με κωδικό στο prototype.}
+
+\section{Κεντρικές ενότητες της εφαρμογής}
+
+\begin{itemize}
+  \item \textbf{Dashboard}: Δείχνει πόσες εργασίες υπάρχουν σε κάθε κατάσταση.
+  \item \textbf{Εργασίες}: Δείχνει τον πίνακα με όλες τις ορατές εργασίες και επιτρέπει αναζήτηση και φιλτράρισμα.
+  \item \textbf{Task Detail}: Είναι η πλήρης καρτέλα της εργασίας με tabs, workflow actions και ιστορικό.
+  \item \textbf{Export PDF}: Εξάγει αναφορά με όλες τις ανοιχτές εργασίες που μπορεί να δει ο τρέχων χρήστης.
+\end{itemize}
+
+\section{Πώς ξεκινά ο χρήστης}
+
+\begin{enumerate}
+  \item Από το επάνω menu επιλέγει αν θα δουλέψει ως \textbf{Admin} ή ως \textbf{Partner}.
+  \item Από το δεύτερο dropdown επιλέγει συγκεκριμένο χρήστη, π.χ. \textbf{Admin 1} ή \textbf{Συνεργάτης 1}.
+  \item Στο dashboard βλέπει αμέσως πόσες εργασίες υπάρχουν ανά στάδιο για τον τρέχοντα χρήστη.
+\end{enumerate}
+
+\section{Πώς δημιουργεί εργασία ο Admin}
+
+\begin{enumerate}
+  \item Ο admin πατά το κουμπί \textbf{Νέα εργασία}.
+  \item Ανοίγει φόρμα δημιουργίας με τα βασικά πεδία.
+  \item Συμπληρώνει τίτλο, είδος, project, project ID, SR / BID, team, διεύθυνση, πόλη και σημειώσεις.
+  \item Ορίζει προγραμματισμό αν υπάρχει ήδη γνωστή ημερομηνία και ώρα.
+  \item Επιλέγει ποιοι συνεργάτες επιτρέπεται να δουν την εργασία.
+  \item Πατά \textbf{Δημιουργία}.
+\end{enumerate}
+
+Μετά τη δημιουργία, το σύστημα παράγει αυτόματα:
+
+\begin{itemize}
+  \item Task ID
+  \item Created at / Created by
+  \item Updated at / Updated by
+  \item Αρχική εγγραφή στο History
+  \item Κενά πεδία για φωτογραφίες, αρχεία και υλικά
+\end{itemize}
+
+\section{Τι σημαίνει κάθε βασικό πεδίο}
+
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.28\linewidth}|>{\raggedright\arraybackslash}p{0.64\linewidth}|}
+\hline
+\textbf{Πεδίο} & \textbf{Επεξήγηση} \\
+\hline
+Τίτλος & Το βασικό όνομα της εργασίας. \\
+\hline
+Είδος & Αυτοψία, εγκατάσταση ή επισκευή. \\
+\hline
+Project & Το έργο στο οποίο ανήκει η εργασία. \\
+\hline
+Project ID & Ο κωδικός αναφοράς του έργου. \\
+\hline
+SR / BID & Εσωτερικός ή εξωτερικός κωδικός ticket / αιτήματος. \\
+\hline
+Πόρος / Team & Η ομάδα ή το συνεργείο που σχετίζεται με την εργασία. \\
+\hline
+Επιτρεπόμενοι partners & Ποιοι συνεργάτες θα μπορούν να δουν και να αναλάβουν την εργασία. \\
+\hline
+Αναλήφθηκε από partner & Ποιος συνεργάτης τελικά την έχει αναλάβει. \\
+\hline
+Ημ/νία έναρξης & Πότε έχει προγραμματιστεί να ξεκινήσει. \\
+\hline
+Ημ/νία λήξης & Πότε ολοκληρώθηκε ή αναμένεται να ολοκληρωθεί. \\
+\hline
+Σημειώσεις & Ελεύθερο πεδίο με οδηγίες, παρατηρήσεις ή ενημερώσεις. \\
+\hline
+\end{longtable}
+
+\section{Πώς βλέπει και αναλαμβάνει εργασία ο συνεργάτης}
+
+\begin{enumerate}
+  \item Ο χρήστης επιλέγει ρόλο \textbf{Partner}.
+  \item Επιλέγει τον εαυτό του, π.χ. \textbf{Συνεργάτης 1}.
+  \item Πηγαίνει στη σελίδα \textbf{Εργασίες}.
+  \item Βλέπει μόνο τις εργασίες που επιτρέπεται να δει.
+  \item Πατά πάνω στη γραμμή της εργασίας για να μπει στην καρτέλα της.
+  \item Αν η εργασία είναι διαθέσιμη, πατά \textbf{Ανάληψη εργασίας}.
+\end{enumerate}
+
+\warningbox{Αν ο συνεργάτης δεν είναι μέσα στους επιτρεπόμενους χρήστες, δεν θα βλέπει την εργασία καθόλου.}
+
+\section{Πώς προχωρά το workflow}
+
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.2\linewidth}|>{\raggedright\arraybackslash}p{0.38\linewidth}|>{\raggedright\arraybackslash}p{0.32\linewidth}|}
+\hline
+\textbf{Κατάσταση} & \textbf{Τι σημαίνει} & \textbf{Ποιος τη μετακινεί} \\
+\hline
+Ανατέθηκε & Η εργασία υπάρχει αλλά δεν έχει ολοκληρωθεί η ενεργή εκτέλεση. & Admin δημιουργεί την εργασία. \\
+\hline
+Προγραμματισμένη & Υπάρχει συνεργάτης και χρονικό παράθυρο. & Admin ή συνεργάτης μετά την ανάληψη. \\
+\hline
+Σε εξέλιξη & Η εργασία εκτελείται στο πεδίο. & Ο συνεργάτης πατά \textbf{Έναρξη εργασίας}. \\
+\hline
+Για επικύρωση & Η εκτέλεση ολοκληρώθηκε και αναμένει έλεγχο από admin. & Ο συνεργάτης πατά \textbf{Αποστολή για επικύρωση}. \\
+\hline
+Ολοκληρωμένη & Η εργασία εγκρίθηκε και έκλεισε. & Ο admin πατά \textbf{Έγκριση ολοκλήρωσης}. \\
+\hline
+\end{longtable}
+
+Αν ο admin διαπιστώσει πρόβλημα, μπορεί να πατήσει \textbf{Απόρριψη και επιστροφή}. Τότε η εργασία επιστρέφει σε κατάσταση \textbf{Σε εξέλιξη}.
+
+\section{Τι κάνει ο χρήστης μέσα στην καρτέλα εργασίας}
+
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.22\linewidth}|>{\raggedright\arraybackslash}p{0.7\linewidth}|}
+\hline
+\textbf{Tab} & \textbf{Χρήση} \\
+\hline
+Κύριος & Τα βασικά στοιχεία της εργασίας, το planning, οι συνεργάτες και οι σημειώσεις. \\
+\hline
+Φωτογραφίες & Ανέβασμα φωτογραφιών σε κατηγορίες πριν, μετά, εξοπλισμός, καλωδίωση. \\
+\hline
+Αρχεία & Ανέβασμα PDF και λοιπών υποστηρικτικών αρχείων. \\
+\hline
+Υλικά & Καταχώρηση υλικών που χρησιμοποιήθηκαν. \\
+\hline
+Floors & Πληροφορίες για ορόφους, μονάδες και risers του κτιρίου. \\
+\hline
+Health \& Safety & Checklist ασφάλειας, παρατηρήσεις και σημεία προσοχής. \\
+\hline
+Ιστορία & Δείχνει ποιος έκανε τι και πότε. \\
+\hline
+Σύστημα & Τεχνικά metadata όπως task ID, timestamps και internal flags. \\
+\hline
+\end{longtable}
+
+\section{Πώς ανεβάζει ο συνεργάτης τεκμηρίωση}
+
+\begin{enumerate}
+  \item Μπαίνει στο tab \textbf{Φωτογραφίες} και επιλέγει την κατάλληλη κατηγορία.
+  \item Ανεβάζει όσες φωτογραφίες χρειάζονται.
+  \item Μπαίνει στο tab \textbf{Αρχεία} και ανεβάζει report ή PDF.
+  \item Αν χρησιμοποιήθηκαν υλικά, τα περνά στο tab \textbf{Υλικά}.
+  \item Συμπληρώνει τυχόν παρατηρήσεις στο \textbf{Health \& Safety}.
+\end{enumerate}
+
+\section{Τι πρέπει να κάνει ο Admin πριν εγκρίνει}
+
+\begin{itemize}
+  \item Να ελέγξει αν η εργασία είναι όντως στη φάση \textbf{Για επικύρωση}.
+  \item Να επιβεβαιώσει ότι υπάρχουν σημειώσεις και σωστό planning.
+  \item Να ελέγξει φωτογραφίες και αρχεία.
+  \item Να ελέγξει ότι η καρτέλα δεν έχει εμφανή ελλείμματα.
+  \item Να διαβάσει το ιστορικό για να δει τι αλλαγές έγιναν.
+\end{itemize}
+
+Αν όλα είναι σωστά, ο admin πατά \textbf{Έγκριση ολοκλήρωσης}. Αν όχι, γράφει σχόλιο και πατά \textbf{Απόρριψη και επιστροφή}.
+
+\section{Πώς γίνεται το Export PDF}
+
+\begin{enumerate}
+  \item Από το αριστερό menu επιλέγουμε \textbf{Export PDF}.
+  \item Ανοίγει αναφορά με όλες τις ανοιχτές εργασίες που μπορεί να δει ο τρέχων χρήστης.
+  \item Πατάμε \textbf{Εκτύπωση / Save as PDF}.
+  \item Στο παράθυρο εκτύπωσης του browser επιλέγουμε αποθήκευση ως PDF.
+\end{enumerate}
+
+\infobox{Ο admin εξάγει όλες τις ανοιχτές εργασίες. Ο συνεργάτης εξάγει μόνο όσες επιτρέπεται να βλέπει.}
+
+\section{Τι κάνει το Reset demo}
+
+Το κουμπί \textbf{Reset demo} επαναφέρει τα mock δεδομένα της εφαρμογής στην αρχική τους κατάσταση. Χρησιμοποιείται όταν θέλουμε να ξαναδείξουμε την εφαρμογή από την αρχή ή όταν θέλουμε να καθαρίσουμε τις δοκιμές.
+
+\section{Συχνά λάθη που πρέπει να αποφεύγονται}
+
+\begin{itemize}
+  \item Να ξεχνά ο admin να δώσει πρόσβαση στον σωστό συνεργάτη.
+  \item Να προχωρά εργασία χωρίς να έχουν ανέβει βασικά αποδεικτικά στοιχεία.
+  \item Να γίνεται έγκριση χωρίς έλεγχο των tabs φωτογραφιών, αρχείων και ιστορικού.
+  \item Να γίνεται Reset demo χωρίς να γνωρίζει ο χρήστης ότι θα χαθούν οι τοπικές δοκιμαστικές αλλαγές.
+\end{itemize}
+
+\section{Σύντομη καθημερινή ροή χρήσης}
+
+\begin{enumerate}
+  \item Ο admin δημιουργεί εργασία.
+  \item Ο admin επιλέγει ποιοι συνεργάτες μπορούν να τη δουν.
+  \item Ο συνεργάτης μπαίνει και την αναλαμβάνει.
+  \item Ο συνεργάτης ξεκινά την εργασία.
+  \item Ο συνεργάτης ενημερώνει στοιχεία, φωτογραφίες, αρχεία και υλικά.
+  \item Ο συνεργάτης τη στέλνει για επικύρωση.
+  \item Ο admin την εγκρίνει ή την επιστρέφει για διόρθωση.
+\end{enumerate}
+
+\vspace{1em}
+\hrule
+\vspace{0.6em}
+
+{\small\textcolor{soft}{Έγγραφο χρήσης για το prototype “Field Operations Control”. Το manual αυτό αντιστοιχεί στην τρέχουσα frontend έκδοση της εφαρμογής χωρίς backend και χωρίς κοινή βάση δεδομένων.}}
+
+\end{document}

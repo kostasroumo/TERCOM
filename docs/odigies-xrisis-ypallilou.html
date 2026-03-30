@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="el">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Οδηγίες Χρήσης Εφαρμογής Field Operations</title>
+    <style>
+      :root {
+        --ink: #163447;
+        --soft: #5f7888;
+        --line: #d6e1e8;
+        --accent: #1f6f7e;
+        --accent-soft: #e9f4f6;
+        --warn: #f3b533;
+        --bg: #f4f7f9;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.6;
+      }
+
+      .sheet {
+        width: min(980px, calc(100% - 48px));
+        margin: 28px auto;
+        padding: 42px 46px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: #fff;
+        box-shadow: 0 24px 60px rgba(18, 52, 70, 0.08);
+      }
+
+      .hero {
+        padding-bottom: 24px;
+        border-bottom: 2px solid var(--line);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--soft);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.15;
+      }
+
+      h1 {
+        font-size: 34px;
+      }
+
+      h2 {
+        margin-top: 34px;
+        font-size: 24px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h3 {
+        margin-top: 22px;
+        font-size: 18px;
+      }
+
+      p {
+        margin: 12px 0 0;
+      }
+
+      ul,
+      ol {
+        margin: 12px 0 0;
+        padding-left: 22px;
+      }
+
+      li + li {
+        margin-top: 7px;
+      }
+
+      .lead {
+        max-width: 72ch;
+        color: var(--soft);
+        font-size: 17px;
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 22px;
+      }
+
+      .meta-card,
+      .info,
+      .step-card {
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+      }
+
+      .meta-card strong,
+      .info strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .meta-card span,
+      .info span {
+        color: var(--soft);
+      }
+
+      .info {
+        margin-top: 16px;
+        background: var(--accent-soft);
+      }
+
+      .steps {
+        display: grid;
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .step-card h3 {
+        margin: 0 0 8px;
+      }
+
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        margin-right: 10px;
+        border-radius: 999px;
+        color: #fff;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--accent), #133f56);
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      table {
+        width: 100%;
+        margin-top: 14px;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f7fafb;
+      }
+
+      .note {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-left: 5px solid var(--warn);
+        border-radius: 12px;
+        background: #fff7e4;
+      }
+
+      .footer {
+        margin-top: 34px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      @page {
+        size: A4;
+        margin: 16mm;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .sheet {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="sheet">
+      <section class="hero">
+        <p class="eyebrow">Field Operations Manual</p>
+        <h1>Οδηγίες Χρήσης για Υπάλληλο</h1>
+        <p class="lead">
+          Το παρόν εγχειρίδιο εξηγεί βήμα βήμα πώς χρησιμοποιείται η εφαρμογή διαχείρισης εργασιών πεδίου.
+          Είναι γραμμένο για καθημερινή χρήση από υπάλληλο ή συνεργάτη που πρέπει να βλέπει εργασίες,
+          να τις αναλαμβάνει, να τις ενημερώνει και να τις προωθεί σωστά μέσα στο workflow.
+        </p>
+
+        <div class="meta">
+          <article class="meta-card">
+            <strong>Ρόλοι συστήματος</strong>
+            <span>Admin 1, Συνεργάτης 1, Συνεργάτης 2</span>
+          </article>
+          <article class="meta-card">
+            <strong>Βασική λειτουργία</strong>
+            <span>Διαχείριση και παρακολούθηση τεχνικών εργασιών πεδίου</span>
+          </article>
+          <article class="meta-card">
+            <strong>Workflow</strong>
+            <span>Ανατέθηκε → Προγραμματισμένη → Σε εξέλιξη → Για επικύρωση → Ολοκληρωμένη</span>
+          </article>
+        </div>
+
+        <div class="info">
+          <strong>Σημαντικό</strong>
+          <span>
+            Η εφαρμογή είναι prototype χωρίς database. Τα δεδομένα αποθηκεύονται τοπικά στον browser του χρήστη.
+            Αυτό σημαίνει ότι χρησιμοποιείται για δοκιμή, παρουσίαση, έλεγχο ροής και όχι για τελική παραγωγική χρήση.
+          </span>
+        </div>
+      </section>
+
+      <h2>1. Τι κάνει η εφαρμογή</h2>
+      <p>
+        Η εφαρμογή χρησιμοποιείται για να οργανώνει τεχνικές εργασίες πεδίου. Κάθε εργασία έχει στοιχεία έργου,
+        διεύθυνση, υπεύθυνο συνεργάτη, προγραμματισμό, φωτογραφίες, αρχεία, υλικά, ιστορικό και τεχνικά metadata.
+      </p>
+      <p>
+        Ο βασικός στόχος είναι να μην υπάρχει μόνο μια απλή λίστα εργασιών, αλλά πλήρης έλεγχος του κύκλου ζωής
+        κάθε εργασίας από τη δημιουργία μέχρι την έγκριση και το κλείσιμο.
+      </p>
+
+      <h2>2. Ποιοι ρόλοι υπάρχουν</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Ρόλος</th>
+            <th>Τι μπορεί να κάνει</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Admin 1</td>
+            <td>Βλέπει όλες τις εργασίες, δημιουργεί νέες, ορίζει ποιοι συνεργάτες έχουν πρόσβαση, κάνει αλλαγές, εγκρίνει ή απορρίπτει.</td>
+          </tr>
+          <tr>
+            <td>Συνεργάτης 1</td>
+            <td>Βλέπει μόνο τις εργασίες που του επιτρέπει ο admin ή όσες έχει ήδη αναλάβει ο ίδιος.</td>
+          </tr>
+          <tr>
+            <td>Συνεργάτης 2</td>
+            <td>Έχει την ίδια λογική με τον Συνεργάτη 1 και δουλεύει μόνο μέσα στο δικό του επιτρεπόμενο scope.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        Η επιλογή ρόλου και χρήστη γίνεται από το πάνω δεξιά μέρος της εφαρμογής. Δεν υπάρχει login με κωδικό στο prototype.
+      </div>
+
+      <h2>3. Κεντρικές ενότητες της εφαρμογής</h2>
+      <div class="grid-2">
+        <article class="info">
+          <strong>Dashboard</strong>
+          <span>Δείχνει πόσες εργασίες υπάρχουν σε κάθε κατάσταση.</span>
+        </article>
+        <article class="info">
+          <strong>Εργασίες</strong>
+          <span>Δείχνει τον πίνακα με όλες τις ορατές εργασίες και επιτρέπει αναζήτηση και φιλτράρισμα.</span>
+        </article>
+        <article class="info">
+          <strong>Task Detail</strong>
+          <span>Είναι η πλήρης καρτέλα της εργασίας με tabs, workflow actions και ιστορικό.</span>
+        </article>
+        <article class="info">
+          <strong>Export PDF</strong>
+          <span>Εξάγει αναφορά με όλες τις ανοιχτές εργασίες που μπορεί να δει ο τρέχων χρήστης.</span>
+        </article>
+      </div>
+
+      <h2>4. Πώς ξεκινά ο χρήστης</h2>
+      <div class="steps">
+        <article class="step-card">
+          <h3><span class="step-number">1</span>Επιλογή ρόλου</h3>
+          <p>Από το επάνω menu επιλέγουμε αν θα δουλέψουμε ως <strong>Admin</strong> ή ως <strong>Partner</strong>.</p>
+        </article>
+        <article class="step-card">
+          <h3><span class="step-number">2</span>Επιλογή χρήστη</h3>
+          <p>Από το δεύτερο dropdown επιλέγουμε συγκεκριμένο χρήστη, π.χ. <strong>Admin 1</strong> ή <strong>Συνεργάτης 1</strong>.</p>
+        </article>
+        <article class="step-card">
+          <h3><span class="step-number">3</span>Έλεγχος dashboard</h3>
+          <p>Στο dashboard βλέπουμε αμέσως πόσες εργασίες υπάρχουν ανά στάδιο για τον τρέχοντα χρήστη.</p>
+        </article>
+      </div>
+
+      <h2>5. Πώς δημιουργεί εργασία ο Admin</h2>
+      <ol>
+        <li>Ο admin πατά το κουμπί <strong>Νέα εργασία</strong>.</li>
+        <li>Ανοίγει φόρμα δημιουργίας με τα βασικά πεδία.</li>
+        <li>Συμπληρώνει τίτλο, είδος, project, project ID, SR / BID, team, διεύθυνση, πόλη και σημειώσεις.</li>
+        <li>Ορίζει προγραμματισμό αν υπάρχει ήδη γνωστή ημερομηνία και ώρα.</li>
+        <li>Επιλέγει ποιοι συνεργάτες επιτρέπεται να δουν την εργασία.</li>
+        <li>Πατά <strong>Δημιουργία</strong>.</li>
+      </ol>
+
+      <p>Μετά τη δημιουργία, το σύστημα παράγει αυτόματα:</p>
+      <ul>
+        <li>Task ID</li>
+        <li>Created at / Created by</li>
+        <li>Updated at / Updated by</li>
+        <li>Αρχική εγγραφή στο History</li>
+        <li>Κενά πεδία για φωτογραφίες, αρχεία και υλικά</li>
+      </ul>
+
+      <h2>6. Τι σημαίνει κάθε βασικό πεδίο</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Πεδίο</th>
+            <th>Επεξήγηση</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Τίτλος</td>
+            <td>Το βασικό όνομα της εργασίας.</td>
+          </tr>
+          <tr>
+            <td>Είδος</td>
+            <td>Αυτοψία, εγκατάσταση ή επισκευή.</td>
+          </tr>
+          <tr>
+            <td>Project</td>
+            <td>Το έργο στο οποίο ανήκει η εργασία.</td>
+          </tr>
+          <tr>
+            <td>Project ID</td>
+            <td>Ο κωδικός αναφοράς του έργου.</td>
+          </tr>
+          <tr>
+            <td>SR / BID</td>
+            <td>Εσωτερικός ή εξωτερικός κωδικός ticket / αιτήματος.</td>
+          </tr>
+          <tr>
+            <td>Πόρος / Team</td>
+            <td>Η ομάδα ή το συνεργείο που σχετίζεται με την εργασία.</td>
+          </tr>
+          <tr>
+            <td>Επιτρεπόμενοι partners</td>
+            <td>Ποιοι συνεργάτες θα μπορούν να δουν και να αναλάβουν την εργασία.</td>
+          </tr>
+          <tr>
+            <td>Αναλήφθηκε από partner</td>
+            <td>Ποιος συνεργάτης τελικά την έχει αναλάβει.</td>
+          </tr>
+          <tr>
+            <td>Ημ/νία έναρξης</td>
+            <td>Πότε έχει προγραμματιστεί να ξεκινήσει.</td>
+          </tr>
+          <tr>
+            <td>Ημ/νία λήξης</td>
+            <td>Πότε ολοκληρώθηκε ή αναμένεται να ολοκληρωθεί.</td>
+          </tr>
+          <tr>
+            <td>Σημειώσεις</td>
+            <td>Ελεύθερο πεδίο με οδηγίες, παρατηρήσεις ή ενημερώσεις.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>7. Πώς βλέπει και αναλαμβάνει εργασία ο συνεργάτης</h2>
+      <ol>
+        <li>Ο χρήστης επιλέγει ρόλο <strong>Partner</strong>.</li>
+        <li>Επιλέγει τον εαυτό του, π.χ. <strong>Συνεργάτης 1</strong>.</li>
+        <li>Πηγαίνει στη σελίδα <strong>Εργασίες</strong>.</li>
+        <li>Βλέπει μόνο τις εργασίες που επιτρέπεται να δει.</li>
+        <li>Πατά πάνω στη γραμμή της εργασίας για να μπει στην καρτέλα της.</li>
+        <li>Αν η εργασία είναι διαθέσιμη, πατά <strong>Ανάληψη εργασίας</strong>.</li>
+      </ol>
+
+      <div class="note">
+        Αν ο συνεργάτης δεν είναι μέσα στους επιτρεπόμενους χρήστες, δεν θα βλέπει την εργασία καθόλου.
+      </div>
+
+      <h2>8. Πώς προχωρά το workflow</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Κατάσταση</th>
+            <th>Τι σημαίνει</th>
+            <th>Ποιος τη μετακινεί</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ανατέθηκε</td>
+            <td>Η εργασία υπάρχει αλλά δεν έχει ολοκληρωθεί η ενεργή εκτέλεση.</td>
+            <td>Admin δημιουργεί την εργασία.</td>
+          </tr>
+          <tr>
+            <td>Προγραμματισμένη</td>
+            <td>Υπάρχει συνεργάτης και χρονικό παράθυρο.</td>
+            <td>Admin ή συνεργάτης μετά την ανάληψη.</td>
+          </tr>
+          <tr>
+            <td>Σε εξέλιξη</td>
+            <td>Η εργασία εκτελείται στο πεδίο.</td>
+            <td>Ο συνεργάτης πατά <strong>Έναρξη εργασίας</strong>.</td>
+          </tr>
+          <tr>
+            <td>Για επικύρωση</td>
+            <td>Η εκτέλεση ολοκληρώθηκε και αναμένει έλεγχο από admin.</td>
+            <td>Ο συνεργάτης πατά <strong>Αποστολή για επικύρωση</strong>.</td>
+          </tr>
+          <tr>
+            <td>Ολοκληρωμένη</td>
+            <td>Η εργασία εγκρίθηκε και έκλεισε.</td>
+            <td>Ο admin πατά <strong>Έγκριση ολοκλήρωσης</strong>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Αν ο admin διαπιστώσει πρόβλημα, μπορεί να πατήσει <strong>Απόρριψη και επιστροφή</strong>. Τότε η εργασία επιστρέφει σε κατάσταση <strong>Σε εξέλιξη</strong>.</p>
+
+      <h2>9. Τι κάνει ο χρήστης μέσα στην καρτέλα εργασίας</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tab</th>
+            <th>Χρήση</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Κύριος</td>
+            <td>Τα βασικά στοιχεία της εργασίας, το planning, οι συνεργάτες και οι σημειώσεις.</td>
+          </tr>
+          <tr>
+            <td>Φωτογραφίες</td>
+            <td>Ανέβασμα φωτογραφιών σε κατηγορίες πριν, μετά, εξοπλισμός, καλωδίωση.</td>
+          </tr>
+          <tr>
+            <td>Αρχεία</td>
+            <td>Ανέβασμα PDF και λοιπών υποστηρικτικών αρχείων.</td>
+          </tr>
+          <tr>
+            <td>Υλικά</td>
+            <td>Καταχώρηση υλικών που χρησιμοποιήθηκαν.</td>
+          </tr>
+          <tr>
+            <td>Floors</td>
+            <td>Πληροφορίες για ορόφους, μονάδες και risers του κτιρίου.</td>
+          </tr>
+          <tr>
+            <td>Health &amp; Safety</td>
+            <td>Checklist ασφάλειας, παρατηρήσεις και σημεία προσοχής.</td>
+          </tr>
+          <tr>
+            <td>Ιστορία</td>
+            <td>Δείχνει ποιος έκανε τι και πότε.</td>
+          </tr>
+          <tr>
+            <td>Σύστημα</td>
+            <td>Τεχνικά metadata όπως task ID, timestamps και internal flags.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>10. Πώς ανεβάζει ο συνεργάτης τεκμηρίωση</h2>
+      <ol>
+        <li>Μπαίνει στο tab <strong>Φωτογραφίες</strong> και επιλέγει την κατάλληλη κατηγορία.</li>
+        <li>Ανεβάζει όσες φωτογραφίες χρειάζονται.</li>
+        <li>Μπαίνει στο tab <strong>Αρχεία</strong> και ανεβάζει report ή PDF.</li>
+        <li>Αν χρησιμοποιήθηκαν υλικά, τα περνά στο tab <strong>Υλικά</strong>.</li>
+        <li>Συμπληρώνει τυχόν παρατηρήσεις στο <strong>Health &amp; Safety</strong>.</li>
+      </ol>
+
+      <h2>11. Τι πρέπει να κάνει ο Admin πριν εγκρίνει</h2>
+      <ul>
+        <li>Να ελέγξει αν η εργασία είναι όντως στη φάση <strong>Για επικύρωση</strong>.</li>
+        <li>Να επιβεβαιώσει ότι υπάρχουν σημειώσεις και σωστό planning.</li>
+        <li>Να ελέγξει φωτογραφίες και αρχεία.</li>
+        <li>Να ελέγξει ότι η καρτέλα δεν έχει εμφανή ελλείμματα.</li>
+        <li>Να διαβάσει το ιστορικό για να δει τι αλλαγές έγιναν.</li>
+      </ul>
+
+      <p>Αν όλα είναι σωστά, ο admin πατά <strong>Έγκριση ολοκλήρωσης</strong>. Αν όχι, γράφει σχόλιο και πατά <strong>Απόρριψη και επιστροφή</strong>.</p>
+
+      <h2>12. Πώς γίνεται το Export PDF</h2>
+      <ol>
+        <li>Από το αριστερό menu επιλέγουμε <strong>Export PDF</strong>.</li>
+        <li>Ανοίγει αναφορά με όλες τις ανοιχτές εργασίες που μπορεί να δει ο τρέχων χρήστης.</li>
+        <li>Πατάμε <strong>Εκτύπωση / Save as PDF</strong>.</li>
+        <li>Στο παράθυρο εκτύπωσης του browser επιλέγουμε αποθήκευση ως PDF.</li>
+      </ol>
+
+      <div class="note">
+        Ο admin εξάγει όλες τις ανοιχτές εργασίες. Ο συνεργάτης εξάγει μόνο όσες επιτρέπεται να βλέπει.
+      </div>
+
+      <h2>13. Τι κάνει το Reset demo</h2>
+      <p>
+        Το κουμπί <strong>Reset demo</strong> επαναφέρει τα mock δεδομένα της εφαρμογής στην αρχική τους κατάσταση.
+        Χρησιμοποιείται όταν θέλουμε να ξαναδείξουμε την εφαρμογή από την αρχή ή όταν θέλουμε να καθαρίσουμε τις δοκιμές.
+      </p>
+
+      <h2>14. Συχνά λάθη που πρέπει να αποφεύγονται</h2>
+      <ul>
+        <li>Να ξεχνά ο admin να δώσει πρόσβαση στον σωστό συνεργάτη.</li>
+        <li>Να προχωρά εργασία χωρίς να έχουν ανέβει βασικά αποδεικτικά στοιχεία.</li>
+        <li>Να γίνεται έγκριση χωρίς έλεγχο των tabs φωτογραφιών, αρχείων και ιστορικού.</li>
+        <li>Να γίνεται Reset demo χωρίς να γνωρίζει ο χρήστης ότι θα χαθούν οι τοπικές δοκιμαστικές αλλαγές.</li>
+      </ul>
+
+      <h2>15. Σύντομη καθημερινή ροή χρήσης</h2>
+      <ol>
+        <li>Ο admin δημιουργεί εργασία.</li>
+        <li>Ο admin επιλέγει ποιοι συνεργάτες μπορούν να τη δουν.</li>
+        <li>Ο συνεργάτης μπαίνει και την αναλαμβάνει.</li>
+        <li>Ο συνεργάτης ξεκινά την εργασία.</li>
+        <li>Ο συνεργάτης ενημερώνει στοιχεία, φωτογραφίες, αρχεία και υλικά.</li>
+        <li>Ο συνεργάτης τη στέλνει για επικύρωση.</li>
+        <li>Ο admin την εγκρίνει ή την επιστρέφει για διόρθωση.</li>
+      </ol>
+
+      <section class="footer">
+        Έγγραφο χρήσης για το prototype “Field Operations Control”. Το manual αυτό αντιστοιχεί στην τρέχουσα frontend έκδοση της εφαρμογής χωρίς backend και χωρίς κοινή βάση δεδομένων.
+      </section>
+    </main>
+  </body>
+</html>

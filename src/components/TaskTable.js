@@ -2,8 +2,6 @@ import { STATUS_META } from "../data/mockData.js";
 import { escapeHtml, formatDate } from "../lib/helpers.js";
 
 export function TaskTable({ tasks, filters, cities, technicians }) {
-  const technicianMap = new Map(technicians.map((technician) => [technician.id, technician.name]));
-
   return `
     <section class="surface">
       <div class="section-head">
@@ -17,7 +15,7 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
       <div class="filter-bar">
         <label class="field">
           <span>Αναζήτηση</span>
-          <input type="search" placeholder="Διεύθυνση, έργο, SR, partner..." value="${escapeHtml(filters.search)}" data-filter="search" />
+          <input type="search" placeholder="Διεύθυνση, SR ID, BID, πελάτης..." value="${escapeHtml(filters.search)}" data-filter="search" />
         </label>
 
         <label class="field">
@@ -39,7 +37,7 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
         </label>
 
         <label class="field">
-          <span>Partner</span>
+          <span>Συνεργάτης</span>
           <select data-filter="technician">
             <option value="all"${filters.technician === "all" ? " selected" : ""}>Όλοι</option>
             ${technicians
@@ -58,7 +56,7 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
             <tr>
               <th>Τοποθεσία</th>
               <th>Πόλη</th>
-              <th>Project ID</th>
+              <th>SR ID / BID</th>
               <th>Ανατέθηκε σε</th>
               <th>Κατάσταση</th>
               <th>Προγραμματισμός</th>
@@ -72,20 +70,16 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
                   <tr class="task-row" data-open-task="${escapeHtml(task.id)}">
                     <td>
                       <div class="table-primary">${escapeHtml(task.address)}</div>
-                      <div class="table-secondary">${escapeHtml(task.projectName)}</div>
+                      <div class="table-secondary">${escapeHtml(task.projectName)} · ${escapeHtml(task.customerName || "-")}</div>
                     </td>
                     <td>${escapeHtml(task.city)}</td>
                     <td>
-                      <div class="table-primary">${escapeHtml(task.projectId)}</div>
-                      <div class="table-secondary">${escapeHtml(task.serviceRequestId)}</div>
+                      <div class="table-primary">${escapeHtml(task.srId)}</div>
+                      <div class="table-secondary">${escapeHtml(task.bid)}</div>
                     </td>
                     <td>
-                      <div class="table-primary">${escapeHtml(task.assignedUserName || "Διαθέσιμη για ανάληψη")}</div>
-                      <div class="table-secondary">${escapeHtml(
-                        task.assignedUserName
-                          ? task.resourceTeam
-                          : `Επιτρέπεται σε partners: ${task.allowedTechnicianIds.map((id) => technicianMap.get(id)).filter(Boolean).join(", ")}`
-                      )}</div>
+                      <div class="table-primary">${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</div>
+                      <div class="table-secondary">${escapeHtml(task.assignedUserName ? task.resourceTeam : "Αναμονή ανάθεσης από admin")}</div>
                     </td>
                     <td><span class="pill pill--${escapeHtml(meta.tone)}">${escapeHtml(meta.label)}</span></td>
                     <td>${task.startDate ? formatDate(task.startDate) : "Δεν ορίστηκε"}</td>

@@ -4,7 +4,7 @@ import { TaskTable } from "./components/TaskTable.js";
 import { createInitialState, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v2";
+const STORAGE_KEY = "birol-field-ops-prototype-v3";
 const app = document.querySelector("#app");
 
 let state = loadState();
@@ -90,21 +90,15 @@ function getTaskById(taskId) {
 }
 
 function normalizeTask(task) {
-  const allowedIds = Array.isArray(task.allowedTechnicianIds) && task.allowedTechnicianIds.length
-    ? [...new Set(task.allowedTechnicianIds)]
-    : task.assignedUserId
-      ? [task.assignedUserId]
-      : TECHNICIANS.map((technician) => technician.id);
-
-  if (task.assignedUserId && !allowedIds.includes(task.assignedUserId)) {
-    allowedIds.push(task.assignedUserId);
-  }
-
   return {
     ...task,
+    customerName: task.customerName || "",
+    mobilePhone: task.mobilePhone || "",
+    landlinePhone: task.landlinePhone || "",
+    srId: task.srId || task.projectId || "",
+    bid: task.bid || task.serviceRequestId || "",
     assignedUserId: task.assignedUserId || "",
-    assignedUserName: task.assignedUserName || "",
-    allowedTechnicianIds: allowedIds
+    assignedUserName: task.assignedUserName || ""
   };
 }
 
@@ -126,28 +120,18 @@ function normalizeState(sourceState) {
   };
 }
 
-function getAllowedTechnicianNames(task) {
-  return TECHNICIANS.filter((technician) => task.allowedTechnicianIds.includes(technician.id)).map((technician) => technician.name);
-}
-
 function getVisibleTasks() {
   if (state.currentRole !== "partner") {
     return state.tasks;
   }
 
   const currentUser = getCurrentUser();
-
-  return state.tasks.filter((task) => {
-    const isOwnedByCurrentTechnician = task.assignedUserId === currentUser.id;
-    const isOpenToCurrentTechnician = !task.assignedUserId && task.allowedTechnicianIds.includes(currentUser.id);
-    return isOwnedByCurrentTechnician || isOpenToCurrentTechnician;
-  });
+  return state.tasks.filter((task) => task.assignedUserId === currentUser.id);
 }
 
 function getPermissions(task) {
   const currentUser = getCurrentUser();
   const isAdmin = state.currentRole === "admin";
-  const isAllowedPartner = state.currentRole === "partner" && task.allowedTechnicianIds.includes(currentUser.id);
   const isAssignedPartner = state.currentRole === "partner" && currentUser.id === task.assignedUserId;
 
   return {
@@ -159,7 +143,6 @@ function getPermissions(task) {
     canUploadFiles: isAdmin || isAssignedPartner,
     canAddMaterials: isAdmin || isAssignedPartner,
     canEditSafety: isAdmin || isAssignedPartner,
-    canClaimTask: isAllowedPartner && !task.assignedUserId && ["assigned", "scheduled"].includes(task.status),
     canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
     canSubmitValidation: (isAdmin || isAssignedPartner) && task.status === "in_progress",
     canApprove: isAdmin && task.status === "pending_validation",
@@ -180,11 +163,13 @@ function getFilteredTasks() {
         task.title,
         task.address,
         task.city,
-        task.projectId,
-        task.serviceRequestId,
+        task.srId,
+        task.bid,
+        task.customerName,
+        task.mobilePhone,
+        task.landlinePhone,
         task.assignedUserName,
-        task.projectName,
-        ...getAllowedTechnicianNames(task)
+        task.projectName
       ]
         .join(" ")
         .toLowerCase()
@@ -307,7 +292,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       return `
         <section class="surface empty-screen">
           <h2>Δεν έχεις πρόσβαση σε αυτή την εργασία</h2>
-          <p>Ο admin δεν έχει δώσει δικαίωμα προβολής ή η εργασία έχει ήδη αναληφθεί από άλλον partner.</p>
+          <p>Η εργασία δεν σου έχει ανατεθεί από τον admin.</p>
           <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
         </section>
       `;
@@ -319,8 +304,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       permissions: getPermissions(task),
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
-      validationComment: state.ui.validationComment,
-      allowedTechnicianNames: getAllowedTechnicianNames(task)
+      validationComment: state.ui.validationComment
     });
   }
 
@@ -351,7 +335,6 @@ function renderOpenTasksReport(openTasks) {
   const renderedTasks = openTasks
     .map((task) => {
       const statusLabel = STATUS_META[task.status]?.label || task.status;
-      const allowedPartners = getAllowedTechnicianNames(task).join(", ") || "-";
 
       return `
         <article class="report-card">
@@ -365,12 +348,14 @@ function renderOpenTasksReport(openTasks) {
           <div class="report-grid">
             <div><strong>Διεύθυνση</strong><span>${escapeHtml(task.address)}</span></div>
             <div><strong>Πόλη</strong><span>${escapeHtml(task.city)}</span></div>
+            <div><strong>Πελάτης</strong><span>${escapeHtml(task.customerName || "-")}</span></div>
+            <div><strong>Κινητό</strong><span>${escapeHtml(task.mobilePhone || "-")}</span></div>
+            <div><strong>Σταθερό</strong><span>${escapeHtml(task.landlinePhone || "-")}</span></div>
             <div><strong>Project</strong><span>${escapeHtml(task.projectName)}</span></div>
-            <div><strong>Project ID</strong><span>${escapeHtml(task.projectId)}</span></div>
-            <div><strong>SR / BID</strong><span>${escapeHtml(task.serviceRequestId)}</span></div>
+            <div><strong>SR ID</strong><span>${escapeHtml(task.srId)}</span></div>
+            <div><strong>BID</strong><span>${escapeHtml(task.bid)}</span></div>
             <div><strong>Team</strong><span>${escapeHtml(task.resourceTeam)}</span></div>
-            <div><strong>Αναλήφθηκε από</strong><span>${escapeHtml(task.assignedUserName || "Δεν έχει αναληφθεί")}</span></div>
-            <div><strong>Επιτρεπόμενοι partners</strong><span>${escapeHtml(allowedPartners)}</span></div>
+            <div><strong>Ανατέθηκε σε</strong><span>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</span></div>
             <div><strong>Έναρξη</strong><span>${escapeHtml(formatDateTime(task.startDate))}</span></div>
             <div><strong>Λήξη</strong><span>${escapeHtml(formatDateTime(task.endDate))}</span></div>
             <div><strong>Created</strong><span>${escapeHtml(task.createdBy)} · ${escapeHtml(formatDateTime(task.createdAt))}</span></div>
@@ -458,12 +443,12 @@ function renderCreateModal() {
             <input name="projectName" required />
           </div>
           <div class="field">
-            <span>Project ID</span>
-            <input name="projectId" required />
+            <span>SR ID</span>
+            <input name="srId" required />
           </div>
           <div class="field">
-            <span>SR / BID</span>
-            <input name="serviceRequestId" required />
+            <span>BID</span>
+            <input name="bid" required />
           </div>
           <div class="field">
             <span>Team</span>
@@ -473,18 +458,17 @@ function renderCreateModal() {
             <span>Προγραμματισμός</span>
             <input type="datetime-local" name="startDate" />
           </div>
-          <div class="field field--wide">
-            <span>Επιτρεπόμενοι partners</span>
-            <div class="checkbox-grid">
-              ${TECHNICIANS.map(
-                (tech) => `
-                  <label class="checkbox-pill">
-                    <input type="checkbox" name="allowedTechnicianIds" value="${escapeHtml(tech.id)}" />
-                    <span>${escapeHtml(tech.name)}</span>
-                  </label>
-                `
-              ).join("")}
-            </div>
+          <div class="field">
+            <span>Ονοματεπώνυμο πελάτη</span>
+            <input name="customerName" required />
+          </div>
+          <div class="field">
+            <span>Κινητό</span>
+            <input name="mobilePhone" required />
+          </div>
+          <div class="field">
+            <span>Σταθερό (προαιρετικό)</span>
+            <input name="landlinePhone" />
           </div>
           <div class="field">
             <span>Διεύθυνση</span>
@@ -684,13 +668,6 @@ function commitTaskChange(taskId, mutateTask, summary, details) {
 
 function createTaskFromForm(formData) {
   const currentUser = getCurrentUser();
-  const allowedTechnicianIds = formData.getAll("allowedTechnicianIds");
-
-  if (!allowedTechnicianIds.length) {
-    window.alert("Πρέπει να επιλέξεις τουλάχιστον έναν partner που θα μπορεί να δει την εργασία.");
-    return;
-  }
-
   const startDate = formData.get("startDate");
   const createdAt = new Date().toISOString();
 
@@ -701,11 +678,13 @@ function createTaskFromForm(formData) {
     status: "assigned",
     address: formData.get("address"),
     city: formData.get("city"),
-    projectId: formData.get("projectId"),
-    serviceRequestId: formData.get("serviceRequestId"),
+    customerName: formData.get("customerName"),
+    mobilePhone: formData.get("mobilePhone"),
+    landlinePhone: formData.get("landlinePhone"),
+    srId: formData.get("srId"),
+    bid: formData.get("bid"),
     projectName: formData.get("projectName"),
     resourceTeam: formData.get("resourceTeam"),
-    allowedTechnicianIds,
     assignedUserId: "",
     assignedUserName: "",
     startDate,
@@ -729,7 +708,7 @@ function createTaskFromForm(formData) {
         author: currentUser.name,
         at: createdAt,
         summary: "Δημιουργία εργασίας",
-        details: "Η εργασία δημιουργήθηκε από το frontend prototype."
+        details: "Η εργασία δημιουργήθηκε και περιμένει ανάθεση από τον admin."
       }
     ],
     materials: [],
@@ -747,26 +726,12 @@ function createTaskFromForm(formData) {
 
 function updateTaskCore(taskId, formData) {
   const nextValues = Object.fromEntries(formData.entries());
-  const allowedTechnicianIds = formData.getAll("allowedTechnicianIds");
-
-  if (formData.has("allowedTechnicianIds") && !allowedTechnicianIds.length) {
-    window.alert("Η εργασία πρέπει να είναι ορατή τουλάχιστον σε έναν partner.");
-    return;
-  }
-
   const assignedUserId = nextValues.assignedUserId || "";
-  const assignmentPool = allowedTechnicianIds.length ? allowedTechnicianIds : undefined;
-  const assignedUser = TECHNICIANS.find(
-    (user) => user.id === assignedUserId && (!assignmentPool || assignmentPool.includes(user.id))
-  );
+  const assignedUser = TECHNICIANS.find((user) => user.id === assignedUserId);
 
   commitTaskChange(
     taskId,
     (task) => {
-      if (formData.has("allowedTechnicianIds")) {
-        task.allowedTechnicianIds = allowedTechnicianIds;
-      }
-
       if (nextValues.title !== undefined) {
         task.title = nextValues.title;
       }
@@ -779,12 +744,24 @@ function updateTaskCore(taskId, formData) {
         task.projectName = nextValues.projectName;
       }
 
-      if (nextValues.projectId !== undefined) {
-        task.projectId = nextValues.projectId;
+      if (nextValues.srId !== undefined) {
+        task.srId = nextValues.srId;
       }
 
-      if (nextValues.serviceRequestId !== undefined) {
-        task.serviceRequestId = nextValues.serviceRequestId;
+      if (nextValues.bid !== undefined) {
+        task.bid = nextValues.bid;
+      }
+
+      if (nextValues.customerName !== undefined) {
+        task.customerName = nextValues.customerName;
+      }
+
+      if (nextValues.mobilePhone !== undefined) {
+        task.mobilePhone = nextValues.mobilePhone;
+      }
+
+      if (nextValues.landlinePhone !== undefined) {
+        task.landlinePhone = nextValues.landlinePhone;
       }
 
       if (nextValues.resourceTeam !== undefined) {
@@ -819,12 +796,16 @@ function updateTaskCore(taskId, formData) {
         task.assignedUserName = "";
       }
 
-      if (state.currentRole === "admin" && nextValues.status) {
+      if (state.currentRole === "admin" && nextValues.status && !["scheduled", "in_progress"].includes(nextValues.status)) {
         task.status = nextValues.status;
-      } else if (task.status === "assigned" && task.startDate && task.assignedUserId) {
-        task.status = "scheduled";
-      } else if (task.status === "scheduled" && (!task.startDate || !task.assignedUserId)) {
-        task.status = "assigned";
+      }
+
+      if (["assigned", "scheduled"].includes(task.status)) {
+        if (task.assignedUserId && task.startDate) {
+          task.status = "scheduled";
+        } else {
+          task.status = "assigned";
+        }
       }
     },
     "Ενημέρωση κύριων στοιχείων",
@@ -866,25 +847,6 @@ function updateSafety(taskId, formData) {
 
 function handleWorkflow(taskId, action) {
   const validationComment = state.ui.validationComment.trim();
-
-  if (action === "claim") {
-    const currentUser = getCurrentUser();
-
-    commitTaskChange(
-      taskId,
-      (task) => {
-        task.assignedUserId = currentUser.id;
-        task.assignedUserName = currentUser.name;
-
-        if (task.status === "assigned" && task.startDate) {
-          task.status = "scheduled";
-        }
-      },
-      "Ανάληψη εργασίας",
-      "Ο partner ανέλαβε την εργασία από το επιτρεπόμενο pool."
-    );
-    return;
-  }
 
   if (action === "start") {
     commitTaskChange(
