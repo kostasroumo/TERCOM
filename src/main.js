@@ -770,10 +770,14 @@ function updateTaskCore(taskId, formData) {
   const nextValues = Object.fromEntries(formData.entries());
   const assignedUserId = nextValues.assignedUserId || "";
   const assignedUser = TECHNICIANS.find((user) => user.id === assignedUserId);
+  const isPartnerEditor = state.currentRole === "partner";
 
   commitTaskChange(
     taskId,
     (task) => {
+      let assignmentChanged = false;
+      let partnerScheduledVisit = false;
+
       if (nextValues.title !== undefined) {
         task.title = nextValues.title;
       }
@@ -823,7 +827,11 @@ function updateTaskCore(taskId, formData) {
       }
 
       if (nextValues.startDate !== undefined) {
+        const previousStartDate = task.startDate || "";
         task.startDate = nextValues.startDate;
+        if (isPartnerEditor && nextValues.startDate && nextValues.startDate !== previousStartDate) {
+          partnerScheduledVisit = true;
+        }
       }
 
       if (nextValues.endDate !== undefined) {
@@ -831,7 +839,7 @@ function updateTaskCore(taskId, formData) {
       }
 
       if (nextValues.assignedUserId !== undefined && assignedUser) {
-        const assignmentChanged = task.assignedUserId !== assignedUser.id;
+        assignmentChanged = task.assignedUserId !== assignedUser.id;
         task.assignedUserId = assignedUser.id;
         task.assignedUserName = assignedUser.name;
         if (assignmentChanged || !task.assignedAt) {
@@ -850,9 +858,13 @@ function updateTaskCore(taskId, formData) {
       if (["unassigned", "assigned", "scheduled"].includes(task.status)) {
         if (!task.assignedUserId) {
           task.status = "unassigned";
-        } else if (task.startDate) {
+        } else if (assignmentChanged || task.status === "unassigned") {
+          task.status = "assigned";
+        } else if (task.status === "scheduled" && !task.startDate) {
+          task.status = "assigned";
+        } else if (partnerScheduledVisit && task.startDate) {
           task.status = "scheduled";
-        } else {
+        } else if (task.status !== "scheduled") {
           task.status = "assigned";
         }
       }
