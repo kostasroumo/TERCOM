@@ -72,17 +72,17 @@ export const PIPELINE_META = {
     label: "Αυτοψία",
     tone: "pipeline-autopsia",
     hint: "Αρχική αποτύπωση, επίσκεψη και τεκμηρίωση πεδίου.",
-    next: "xwmatourgiko"
+    next: "leitourgies_inwn"
   },
-  xwmatourgiko: {
-    label: "Χωματουργικό",
-    tone: "pipeline-xwmatourgiko",
-    hint: "Επόμενη επιχειρησιακή φάση με εκτέλεση χωματουργικών εργασιών.",
+  leitourgies_inwn: {
+    label: "Λειτουργίες Ινών",
+    tone: "pipeline-leitourgies-inwn",
+    hint: "Επόμενη επιχειρησιακή φάση για τις εργασίες ινών μετά την αυτοψία.",
     next: null
   }
 };
 
-export const PIPELINE_ORDER = ["autopsia", "xwmatourgiko"];
+export const PIPELINE_ORDER = ["autopsia", "leitourgies_inwn"];
 
 export const PHOTO_CATEGORIES = [
   { value: "before", label: "Πριν" },
@@ -434,7 +434,7 @@ const tasks = [
     id: "TASK-24035",
     title: "Κλείσιμο αποκατάστασης σε cabinet cluster",
     type: "repair",
-    pipeline: "xwmatourgiko",
+    pipeline: "leitourgies_inwn",
     status: "completed",
     address: "25ης Μαρτίου 61",
     city: "Ηράκλειο",
@@ -483,8 +483,8 @@ const tasks = [
         id: "HIST-7A",
         author: "Admin 1",
         at: "2026-03-23T13:45",
-        summary: "Μετάβαση στο pipeline Χωματουργικό",
-        details: "Η φάση Αυτοψία εγκρίθηκε και η ίδια εργασία άνοιξε στη φάση Χωματουργικό."
+        summary: "Μετάβαση στο pipeline Λειτουργίες Ινών",
+        details: "Η φάση Αυτοψία εγκρίθηκε και η ίδια εργασία άνοιξε στη φάση Λειτουργίες Ινών."
       },
       {
         id: "HIST-7",

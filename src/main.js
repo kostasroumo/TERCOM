@@ -1046,6 +1046,7 @@ function handleWorkflow(taskId, action) {
         taskId,
         (nextTask) => {
           const approvedAt = new Date().toISOString();
+          const hasAssignedPartner = !!nextTask.assignedUserId;
           nextTask.pipelineHistory.unshift({
             id: createId("PIPE"),
             pipeline: nextTask.pipeline,
@@ -1053,10 +1054,8 @@ function handleWorkflow(taskId, action) {
             approvedBy: getCurrentUser().name
           });
           nextTask.pipeline = nextPipeline;
-          nextTask.status = "unassigned";
-          nextTask.assignedUserId = "";
-          nextTask.assignedUserName = "";
-          nextTask.assignedAt = "";
+          nextTask.status = hasAssignedPartner ? "assigned" : "unassigned";
+          nextTask.assignedAt = hasAssignedPartner ? approvedAt : "";
           nextTask.startDate = "";
           nextTask.endDate = "";
           nextTask.completedAt = "";
@@ -1069,7 +1068,7 @@ function handleWorkflow(taskId, action) {
         },
         `Ολοκλήρωση pipeline ${PIPELINE_META[task.pipeline].label}`,
         validationComment ||
-          `Η φάση ${PIPELINE_META[task.pipeline].label} εγκρίθηκε και η ίδια εργασία μεταφέρθηκε στο pipeline ${PIPELINE_META[nextPipeline].label}.`
+          `Η φάση ${PIPELINE_META[task.pipeline].label} εγκρίθηκε και η ίδια εργασία μεταφέρθηκε ως ανατεθειμένη στο pipeline ${PIPELINE_META[nextPipeline].label}.`
       );
       state.ui.validationComment = "";
       saveState();
