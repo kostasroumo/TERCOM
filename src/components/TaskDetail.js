@@ -1,4 +1,4 @@
-import { STATUS_META, STATUS_OPTIONS_ORDER, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
+import { PIPELINE_META, STATUS_META, STATUS_OPTIONS_ORDER, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
 import { escapeHtml, formatCompactDateTime, formatDateTime, formatElapsedDays, formatFileSize, icon } from "../lib/helpers.js";
 import { HistoryTimeline } from "./HistoryTimeline.js";
 import { PhotoUploader } from "./PhotoUploader.js";
@@ -267,9 +267,17 @@ function renderSafetyTab(task, permissions) {
 }
 
 function renderSystemTab(task) {
+  const completedPipelines = task.pipelineHistory.length
+    ? task.pipelineHistory
+        .map((entry) => `${PIPELINE_META[entry.pipeline]?.label || entry.pipeline} · ${formatCompactDateTime(entry.completedAt)}`)
+        .join(" | ")
+    : "Δεν υπάρχουν ολοκληρωμένα προηγούμενα pipelines";
+
   return `
     <section class="tab-panel">
       <div class="system-grid">
+        <article class="system-card"><span>Current pipeline</span><strong>${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</strong></article>
+        <article class="system-card"><span>Pipeline history</span><strong>${escapeHtml(completedPipelines)}</strong></article>
         <article class="system-card"><span>Task ID</span><strong>${escapeHtml(task.id)}</strong></article>
         <article class="system-card"><span>Created at</span><strong>${formatCompactDateTime(task.createdAt)}</strong></article>
         <article class="system-card"><span>Ημέρες ανοιχτό από δημιουργία</span><strong>${formatElapsedDays(task.createdAt, task.completedAt)}</strong></article>
@@ -410,20 +418,31 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
       <div class="detail-header surface">
         <div class="detail-header__top">
           <button class="link-button" data-route="#/tasks">← Πίσω στη λίστα</button>
-          <span class="pill pill--${escapeHtml(STATUS_META[task.status].tone)}">${escapeHtml(STATUS_META[task.status].label)}</span>
+          <div class="detail-header__pills">
+            <span class="pill pill--${escapeHtml(PIPELINE_META[task.pipeline]?.tone || "pipeline-autopsia")}">${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
+            <span class="pill pill--${escapeHtml(STATUS_META[task.status].tone)}">${escapeHtml(STATUS_META[task.status].label)}</span>
+          </div>
         </div>
 
         <div class="detail-header__title">
           <div>
             <p class="eyebrow">Task Workspace</p>
             <h1>${escapeHtml(task.title)}</h1>
-            <p>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(task.srId)}</p>
+            <p>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(task.srId)} · Pipeline: ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</p>
           </div>
           <div class="detail-summary">
             <article><span>Ρόλος</span><strong>${escapeHtml(currentRoleLabel)}</strong></article>
             <article><span>Χρήστης</span><strong>${escapeHtml(currentUserName)}</strong></article>
             <article><span>Τελευταία ενημέρωση</span><strong>${formatCompactDateTime(task.updatedAt)}</strong></article>
           </div>
+        </div>
+
+        <div class="workflow-header">
+          <div>
+            <p class="eyebrow">Current Pipeline</p>
+            <h3>${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</h3>
+          </div>
+          <p>${escapeHtml(PIPELINE_META[task.pipeline]?.hint || "")}</p>
         </div>
 
         <div class="workflow-strip">
@@ -461,6 +480,7 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
           <div class="detail-side__section">
             <h3>Execution snapshot</h3>
             <dl class="mini-spec">
+              <div><dt>Pipeline</dt><dd>${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</dd></div>
               <div><dt>Project</dt><dd>${escapeHtml(task.projectName)}</dd></div>
               <div><dt>SR ID</dt><dd>${escapeHtml(task.srId)}</dd></div>
               <div><dt>BID</dt><dd>${escapeHtml(task.bid)}</dd></div>

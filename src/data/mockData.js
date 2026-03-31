@@ -67,6 +67,23 @@ export const TASK_TYPES = [
   { value: "repair", label: "Επισκευή" }
 ];
 
+export const PIPELINE_META = {
+  autopsia: {
+    label: "Αυτοψία",
+    tone: "pipeline-autopsia",
+    hint: "Αρχική αποτύπωση, επίσκεψη και τεκμηρίωση πεδίου.",
+    next: "xwmatourgiko"
+  },
+  xwmatourgiko: {
+    label: "Χωματουργικό",
+    tone: "pipeline-xwmatourgiko",
+    hint: "Επόμενη επιχειρησιακή φάση με εκτέλεση χωματουργικών εργασιών.",
+    next: null
+  }
+};
+
+export const PIPELINE_ORDER = ["autopsia", "xwmatourgiko"];
+
 export const PHOTO_CATEGORIES = [
   { value: "before", label: "Πριν" },
   { value: "after", label: "Μετά" },
@@ -118,6 +135,7 @@ const tasks = [
     id: "TASK-24031",
     title: "Αυτοψία πολυκατοικίας για smart readiness",
     type: "survey",
+    pipeline: "autopsia",
     status: "scheduled",
     address: "Λεωφ. Κηφισίας 124",
     city: "Αθήνα",
@@ -186,6 +204,7 @@ const tasks = [
         details: "Ορίστηκε συνεργάτης και χρονικό παράθυρο επίσκεψης."
       }
     ],
+    pipelineHistory: [],
     materials: [
       { id: "MAT-1", code: "FBR-12", description: "Fiber terminal kit", quantity: 1, unit: "τεμ." },
       { id: "MAT-2", code: "CBL-UTP", description: "UTP spool 20m", quantity: 1, unit: "ρολό" }
@@ -203,6 +222,7 @@ const tasks = [
     id: "TASK-24032",
     title: "Εγκατάσταση εξοπλισμού οπτικής ίνας σε MDU",
     type: "installation",
+    pipeline: "autopsia",
     status: "in_progress",
     address: "Εθνικής Αντιστάσεως 45",
     city: "Κομοτηνή",
@@ -262,6 +282,7 @@ const tasks = [
         details: "Ο συνεργάτης σημείωσε την εργασία ως σε εξέλιξη."
       }
     ],
+    pipelineHistory: [],
     materials: [
       { id: "MAT-3", code: "ONT-24", description: "Optical network terminal", quantity: 4, unit: "τεμ." },
       { id: "MAT-4", code: "SPL-08", description: "Splitter 1:8", quantity: 1, unit: "τεμ." }
@@ -279,6 +300,7 @@ const tasks = [
     id: "TASK-24033",
     title: "Repair ticket για πτώση σήματος",
     type: "repair",
+    pipeline: "autopsia",
     status: "unassigned",
     address: "Πίνδου 19",
     city: "Θεσσαλονίκη",
@@ -322,6 +344,7 @@ const tasks = [
         details: "Η εργασία δημιουργήθηκε και αναμένει ανάθεση σε συνεργάτη."
       }
     ],
+    pipelineHistory: [],
     materials: [],
     floors: [
       { id: "FL-5", level: "Ισόγειο", units: 1, access: "Ελεύθερη", riser: "Κύρια είσοδος" }
@@ -334,6 +357,7 @@ const tasks = [
     id: "TASK-24034",
     title: "Τελικός έλεγχος ποιότητας κατακόρυφης καλωδίωσης",
     type: "survey",
+    pipeline: "autopsia",
     status: "pending_validation",
     address: "Μακεδονομάχων 8",
     city: "Πάτρα",
@@ -395,6 +419,7 @@ const tasks = [
         details: "Η εργασία μεταφέρθηκε στο στάδιο ελέγχου."
       }
     ],
+    pipelineHistory: [],
     materials: [
       { id: "MAT-5", code: "DUCT-16", description: "Micro duct 16mm", quantity: 12, unit: "μ." }
     ],
@@ -409,6 +434,7 @@ const tasks = [
     id: "TASK-24035",
     title: "Κλείσιμο αποκατάστασης σε cabinet cluster",
     type: "repair",
+    pipeline: "xwmatourgiko",
     status: "completed",
     address: "25ης Μαρτίου 61",
     city: "Ηράκλειο",
@@ -454,11 +480,26 @@ const tasks = [
     files: [],
     history: [
       {
+        id: "HIST-7A",
+        author: "Admin 1",
+        at: "2026-03-23T13:45",
+        summary: "Μετάβαση στο pipeline Χωματουργικό",
+        details: "Η φάση Αυτοψία εγκρίθηκε και η ίδια εργασία άνοιξε στη φάση Χωματουργικό."
+      },
+      {
         id: "HIST-7",
         author: "Admin 1",
         at: "2026-03-24T16:30",
         summary: "Επικύρωση ολοκλήρωσης",
         details: "Η εργασία εγκρίθηκε και έκλεισε."
+      }
+    ],
+    pipelineHistory: [
+      {
+        id: "PIPE-1",
+        pipeline: "autopsia",
+        completedAt: "2026-03-23T13:45",
+        approvedBy: "Admin 1"
       }
     ],
     materials: [
@@ -475,6 +516,7 @@ const tasks = [
     id: "TASK-24036",
     title: "Νέα εργασία χαρτογράφησης καλωδίωσης",
     type: "survey",
+    pipeline: "autopsia",
     status: "unassigned",
     address: "Σπύρου Λούη 12",
     city: "Λάρισα",
@@ -518,6 +560,7 @@ const tasks = [
         details: "Η εργασία καταχωρήθηκε και περιμένει ανάθεση."
       }
     ],
+    pipelineHistory: [],
     materials: [],
     floors: [
       { id: "FL-8", level: "Υπόγειο", units: 1, access: "Με συνοδεία", riser: "Κύριο shaft" }
@@ -538,6 +581,7 @@ export function createInitialState() {
     filters: {
       search: "",
       status: "all",
+      pipeline: "all",
       city: "all",
       technician: "all"
     },

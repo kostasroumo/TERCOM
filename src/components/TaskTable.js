@@ -1,7 +1,7 @@
-import { STATUS_META } from "../data/mockData.js";
+import { PIPELINE_META, STATUS_META } from "../data/mockData.js";
 import { escapeHtml, formatDate } from "../lib/helpers.js";
 
-export function TaskTable({ tasks, filters, cities, technicians }) {
+export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
   return `
     <section class="surface">
       <div class="section-head">
@@ -24,6 +24,16 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
             <option value="all"${filters.status === "all" ? " selected" : ""}>Όλες</option>
             ${Object.entries(STATUS_META)
               .map(([value, meta]) => `<option value="${value}"${filters.status === value ? " selected" : ""}>${escapeHtml(meta.label)}</option>`)
+              .join("")}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Pipeline</span>
+          <select data-filter="pipeline">
+            <option value="all"${filters.pipeline === "all" ? " selected" : ""}>Όλα</option>
+            ${pipelines
+              .map((pipeline) => `<option value="${escapeHtml(pipeline)}"${filters.pipeline === pipeline ? " selected" : ""}>${escapeHtml(PIPELINE_META[pipeline].label)}</option>`)
               .join("")}
           </select>
         </label>
@@ -56,6 +66,7 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
             <tr>
               <th>Τοποθεσία</th>
               <th>Πόλη</th>
+              <th>Pipeline</th>
               <th>SR ID / BID</th>
               <th>Ανατέθηκε σε</th>
               <th>Κατάσταση</th>
@@ -73,6 +84,7 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
                       <div class="table-secondary">${escapeHtml(task.projectName)} · ${escapeHtml(task.customerName || "-")}</div>
                     </td>
                     <td>${escapeHtml(task.city)}</td>
+                    <td><span class="pill pill--${escapeHtml(PIPELINE_META[task.pipeline]?.tone || "pipeline-autopsia")}">${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span></td>
                     <td>
                       <div class="table-primary">${escapeHtml(task.srId)}</div>
                       <div class="table-secondary">${escapeHtml(task.bid)}</div>

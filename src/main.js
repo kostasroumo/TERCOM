@@ -1,10 +1,10 @@
 import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
-import { createInitialState, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
+import { createInitialState, PIPELINE_META, PIPELINE_ORDER, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v5";
+const STORAGE_KEY = "birol-field-ops-prototype-v6";
 const app = document.querySelector("#app");
 
 let state = loadState();
@@ -38,7 +38,7 @@ function loadState() {
       reportAutoPrint: false,
       ...parsed.ui
     };
-    parsed.filters ||= { search: "", status: "all", city: "all", technician: "all" };
+    parsed.filters ||= { search: "", status: "all", pipeline: "all", city: "all", technician: "all" };
     return normalizeState(parsed);
   } catch {
     return normalizeState(createInitialState());
@@ -97,6 +97,7 @@ function getTaskById(taskId) {
 function normalizeTask(task) {
   return {
     ...task,
+    pipeline: task.pipeline || "autopsia",
     customerName: task.customerName || "",
     mobilePhone: task.mobilePhone || "",
     landlinePhone: task.landlinePhone || "",
@@ -115,7 +116,8 @@ function normalizeTask(task) {
       cancellationReason: task.flags?.cancellationReason || ""
     },
     assignedUserId: task.assignedUserId || "",
-    assignedUserName: task.assignedUserName || ""
+    assignedUserName: task.assignedUserName || "",
+    pipelineHistory: Array.isArray(task.pipelineHistory) ? task.pipelineHistory : []
   };
 }
 
@@ -133,6 +135,14 @@ function normalizeState(sourceState) {
     ...sourceState,
     currentRole: normalizedRole,
     currentUserId: normalizedUserId,
+    filters: {
+      search: "",
+      status: "all",
+      pipeline: "all",
+      city: "all",
+      technician: "all",
+      ...sourceState.filters
+    },
     tasks: (sourceState.tasks || []).map(normalizeTask)
   };
 }
@@ -197,10 +207,11 @@ function getFilteredTasks() {
         .includes(searchText);
 
     const matchesStatus = state.filters.status === "all" || task.status === state.filters.status;
+    const matchesPipeline = state.filters.pipeline === "all" || task.pipeline === state.filters.pipeline;
     const matchesCity = state.filters.city === "all" || task.city === state.filters.city;
     const matchesTechnician = state.filters.technician === "all" || task.assignedUserId === state.filters.technician;
 
-    return matchesSearch && matchesStatus && matchesCity && matchesTechnician;
+    return matchesSearch && matchesStatus && matchesPipeline && matchesCity && matchesTechnician;
   });
 }
 
@@ -293,6 +304,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       tasks: filteredTasks,
       filters: state.filters,
       cities,
+      pipelines: PIPELINE_ORDER,
       technicians: TECHNICIANS,
       currentRole: state.currentRole
     });
@@ -330,11 +342,28 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
     });
   }
 
-  const counts = STATUS_ORDER.map((status) => [status, countByStatus(visibleTasks, status)]);
-
   return `
-    <section class="status-grid">
-      ${counts.map(([status, count]) => TaskCard(status, count)).join("")}
+    <section class="pipeline-dashboard">
+      ${PIPELINE_ORDER.map((pipelineKey) => {
+        const pipelineTasks = visibleTasks.filter((task) => task.pipeline === pipelineKey);
+        const counts = STATUS_ORDER.map((status) => [status, countByStatus(pipelineTasks, status)]);
+
+        return `
+          <section class="pipeline-section">
+            <div class="pipeline-section__head">
+              <div>
+                <p class="eyebrow">Pipeline</p>
+                <h2>${escapeHtml(PIPELINE_META[pipelineKey].label)}</h2>
+                <p class="section-copy">${escapeHtml(PIPELINE_META[pipelineKey].hint)}</p>
+              </div>
+              <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${pipelineTasks.length} εργασίες</span>
+            </div>
+            <div class="status-grid">
+              ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey)).join("")}
+            </div>
+          </section>
+        `;
+      }).join("")}
     </section>
   `;
 }
@@ -368,6 +397,7 @@ function renderOpenTasksReport(openTasks) {
             <span class="report-pill">${escapeHtml(statusLabel)}</span>
           </div>
           <div class="report-grid">
+            <div><strong>Pipeline</strong><span>${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span></div>
             <div><strong>Διεύθυνση</strong><span>${escapeHtml(task.address)}</span></div>
             <div><strong>Πόλη</strong><span>${escapeHtml(task.city)}</span></div>
             <div><strong>Πελάτης</strong><span>${escapeHtml(task.customerName || "-")}</span></div>
@@ -522,8 +552,14 @@ function handleClick(event) {
   if (routeTarget) {
     const nextRoute = routeTarget.getAttribute("data-route");
     const filterStatus = routeTarget.getAttribute("data-filter-status");
+    const filterPipeline = routeTarget.getAttribute("data-filter-pipeline");
     if (filterStatus) {
       state.filters.status = filterStatus;
+    }
+    if (filterPipeline) {
+      state.filters.pipeline = filterPipeline;
+    }
+    if (filterStatus || filterPipeline) {
       saveState();
     }
     if (nextRoute?.startsWith("#/tasks") || nextRoute?.startsWith("#/dashboard")) {
@@ -727,6 +763,7 @@ function createTaskFromForm(formData) {
     id: createId("TASK"),
     title: formData.get("title"),
     type: formData.get("type"),
+    pipeline: "autopsia",
     status: "unassigned",
     address: formData.get("address"),
     city: formData.get("city"),
@@ -769,6 +806,7 @@ function createTaskFromForm(formData) {
         details: "Η εργασία δημιουργήθηκε και περιμένει ανάθεση από τον admin."
       }
     ],
+    pipelineHistory: [],
     materials: [],
     floors: [{ id: createId("FL"), level: "Ισόγειο", units: 1, access: "Ελεύθερη", riser: "Κύριος" }],
     safety: [{ id: createId("SAFE"), item: "Γενικός έλεγχος πρόσβασης", status: "needs-review", note: "Νέα εγγραφή" }]
@@ -995,6 +1033,50 @@ function handleWorkflow(taskId, action) {
   }
 
   if (action === "approve") {
+    const task = getTaskById(taskId);
+
+    if (!task) {
+      return;
+    }
+
+    const nextPipeline = PIPELINE_META[task.pipeline]?.next;
+
+    if (nextPipeline) {
+      commitTaskChange(
+        taskId,
+        (nextTask) => {
+          const approvedAt = new Date().toISOString();
+          nextTask.pipelineHistory.unshift({
+            id: createId("PIPE"),
+            pipeline: nextTask.pipeline,
+            completedAt: approvedAt,
+            approvedBy: getCurrentUser().name
+          });
+          nextTask.pipeline = nextPipeline;
+          nextTask.status = "unassigned";
+          nextTask.assignedUserId = "";
+          nextTask.assignedUserName = "";
+          nextTask.assignedAt = "";
+          nextTask.startDate = "";
+          nextTask.endDate = "";
+          nextTask.completedAt = "";
+          nextTask.flags.validationLock = false;
+          nextTask.flags.openIssues = false;
+          nextTask.flags.cancellationRequested = false;
+          nextTask.flags.cancellationRequestedAt = "";
+          nextTask.flags.cancellationRequestedBy = "";
+          nextTask.flags.cancellationReason = "";
+        },
+        `Ολοκλήρωση pipeline ${PIPELINE_META[task.pipeline].label}`,
+        validationComment ||
+          `Η φάση ${PIPELINE_META[task.pipeline].label} εγκρίθηκε και η ίδια εργασία μεταφέρθηκε στο pipeline ${PIPELINE_META[nextPipeline].label}.`
+      );
+      state.ui.validationComment = "";
+      saveState();
+      render();
+      return;
+    }
+
     commitTaskChange(
       taskId,
       (task) => {

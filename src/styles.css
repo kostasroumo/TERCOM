@@ -276,11 +276,28 @@ svg {
   font-size: 1.35rem;
 }
 
+.pipeline-dashboard {
+  display: grid;
+  gap: 28px;
+  margin-top: 24px;
+}
+
+.pipeline-section__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pipeline-section__head h2 {
+  margin: 8px 0 6px;
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
-  margin-top: 24px;
 }
 
 .status-card {
@@ -669,6 +686,16 @@ svg {
   background: rgba(34, 200, 111, 0.2);
 }
 
+.pill--pipeline-autopsia {
+  color: #0e4f65;
+  background: rgba(63, 158, 201, 0.18);
+}
+
+.pill--pipeline-xwmatourgiko {
+  color: #6d4f09;
+  background: rgba(208, 159, 33, 0.22);
+}
+
 .detail-view {
   margin-top: 24px;
 }
@@ -685,6 +712,13 @@ svg {
   gap: 16px;
 }
 
+.detail-header__pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .detail-header__title {
   margin-top: 16px;
 }
@@ -699,11 +733,31 @@ svg {
   min-width: min(520px, 100%);
 }
 
+.workflow-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.workflow-header h3 {
+  margin: 6px 0 0;
+  font-size: 1.25rem;
+}
+
+.workflow-header p:last-child {
+  max-width: 420px;
+  margin: 0;
+  color: var(--text-soft);
+  text-align: right;
+}
+
 .workflow-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 24px;
+  margin-top: 14px;
 }
 
 .workflow-step {
@@ -1230,6 +1284,16 @@ svg {
     grid-template-columns: 1fr;
     min-width: 0;
   }
+
+  .workflow-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workflow-header p:last-child {
+    max-width: none;
+    text-align: left;
+  }
 }
 
 @media (max-width: 880px) {
@@ -1249,8 +1313,13 @@ svg {
   .topbar,
   .detail-header__top,
   .detail-header__title,
-  .tab-panel__head {
+  .tab-panel__head,
+  .pipeline-section__head {
     flex-direction: column;
+  }
+
+  .detail-header__pills {
+    justify-content: flex-start;
   }
 
   .topbar__controls,
