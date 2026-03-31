@@ -79,7 +79,13 @@ export function TaskTable({ tasks, filters, cities, technicians }) {
                     </td>
                     <td>
                       <div class="table-primary">${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</div>
-                      <div class="table-secondary">${escapeHtml(task.assignedUserName ? task.resourceTeam : "Αναμονή ανάθεσης από admin")}</div>
+                      <div class="table-secondary">${escapeHtml(
+                        task.flags?.cancellationRequested
+                          ? `Αίτημα ακύρωσης σε εκκρεμότητα · ${task.resourceTeam}`
+                          : task.assignedUserName
+                            ? task.resourceTeam
+                            : "Αναμονή ανάθεσης από admin"
+                      )}</div>
                     </td>
                     <td><span class="pill pill--${escapeHtml(meta.tone)}">${escapeHtml(meta.label)}</span></td>
                     <td>${task.startDate ? formatDate(task.startDate) : "Δεν ορίστηκε"}</td>

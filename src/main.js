@@ -4,7 +4,7 @@ import { TaskTable } from "./components/TaskTable.js";
 import { createInitialState, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v3";
+const STORAGE_KEY = "birol-field-ops-prototype-v4";
 const app = document.querySelector("#app");
 
 let state = loadState();
@@ -33,6 +33,7 @@ function loadState() {
       activeTab: "main",
       showCreateModal: false,
       validationComment: "",
+      cancellationComment: "",
       exportReturnRoute: "#/dashboard",
       reportAutoPrint: false,
       ...parsed.ui
@@ -99,6 +100,16 @@ function normalizeTask(task) {
     bid: task.bid || task.serviceRequestId || "",
     assignedAt: task.assignedAt || (task.assignedUserId ? task.startDate || task.createdAt || "" : ""),
     completedAt: task.completedAt || (task.status === "completed" ? task.endDate || task.updatedAt || "" : ""),
+    flags: {
+      apiStatus: task.flags?.apiStatus || "LOCAL-ONLY",
+      validationLock: !!task.flags?.validationLock,
+      openIssues: !!task.flags?.openIssues,
+      smartReadiness: task.flags?.smartReadiness || "Σε αναμονή",
+      cancellationRequested: !!task.flags?.cancellationRequested,
+      cancellationRequestedAt: task.flags?.cancellationRequestedAt || "",
+      cancellationRequestedBy: task.flags?.cancellationRequestedBy || "",
+      cancellationReason: task.flags?.cancellationReason || ""
+    },
     assignedUserId: task.assignedUserId || "",
     assignedUserName: task.assignedUserName || ""
   };
@@ -145,10 +156,14 @@ function getPermissions(task) {
     canUploadFiles: isAdmin || isAssignedPartner,
     canAddMaterials: isAdmin || isAssignedPartner,
     canEditSafety: isAdmin || isAssignedPartner,
+    canScheduleVisit: isAssignedPartner && ["assigned", "scheduled"].includes(task.status),
     canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
     canSubmitValidation: (isAdmin || isAssignedPartner) && task.status === "in_progress",
     canApprove: isAdmin && task.status === "pending_validation",
-    canReject: isAdmin && task.status === "pending_validation"
+    canReject: isAdmin && task.status === "pending_validation",
+    canRequestCancellation: isAssignedPartner && task.status === "in_progress" && !task.flags.cancellationRequested,
+    canApproveCancellation: isAdmin && !!task.flags.cancellationRequested,
+    canRejectCancellation: isAdmin && !!task.flags.cancellationRequested
   };
 }
 
@@ -306,7 +321,8 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       permissions: getPermissions(task),
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
-      validationComment: state.ui.validationComment
+      validationComment: state.ui.validationComment,
+      cancellationComment: state.ui.cancellationComment
     });
   }
 
@@ -506,6 +522,11 @@ function handleClick(event) {
       state.filters.status = filterStatus;
       saveState();
     }
+    if (nextRoute?.startsWith("#/tasks") || nextRoute?.startsWith("#/dashboard")) {
+      state.ui.validationComment = "";
+      state.ui.cancellationComment = "";
+      saveState();
+    }
     window.location.hash = nextRoute;
     return;
   }
@@ -523,6 +544,8 @@ function handleClick(event) {
   const taskTarget = event.target.closest("[data-open-task]");
   if (taskTarget) {
     state.ui.activeTab = "main";
+    state.ui.validationComment = "";
+    state.ui.cancellationComment = "";
     saveState();
     window.location.hash = `#/tasks/${encodeURIComponent(taskTarget.getAttribute("data-open-task"))}`;
     return;
@@ -574,6 +597,8 @@ function handleChange(event) {
     if (!canCreateTasks()) {
       state.ui.showCreateModal = false;
     }
+    state.ui.validationComment = "";
+    state.ui.cancellationComment = "";
     saveState();
     render();
     return;
@@ -613,6 +638,12 @@ function handleInput(event) {
 
   if (event.target.matches("[data-validation-comment]")) {
     state.ui.validationComment = event.target.value;
+    saveState();
+    return;
+  }
+
+  if (event.target.matches("[data-cancellation-comment]")) {
+    state.ui.cancellationComment = event.target.value;
     saveState();
   }
 }
@@ -705,7 +736,11 @@ function createTaskFromForm(formData) {
       apiStatus: "LOCAL-ONLY",
       validationLock: false,
       openIssues: false,
-      smartReadiness: "Σε αναμονή"
+      smartReadiness: "Σε αναμονή",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [],
     files: [],
@@ -865,6 +900,7 @@ function updateSafety(taskId, formData) {
 
 function handleWorkflow(taskId, action) {
   const validationComment = state.ui.validationComment.trim();
+  const cancellationComment = state.ui.cancellationComment.trim();
 
   if (action === "start") {
     commitTaskChange(
@@ -894,6 +930,40 @@ function handleWorkflow(taskId, action) {
     return;
   }
 
+  if (action === "request-cancellation") {
+    const task = getTaskById(taskId);
+
+    if (!task) {
+      return;
+    }
+
+    if (!cancellationComment) {
+      window.alert("Γράψε πρώτα αιτιολογία για το αίτημα ακύρωσης.");
+      return;
+    }
+
+    if (!task.photos.length && !task.files.length) {
+      window.alert("Πριν το αίτημα ακύρωσης πρέπει να υπάρχουν φωτογραφίες ή αρχεία τεκμηρίωσης.");
+      return;
+    }
+
+    commitTaskChange(
+      taskId,
+      (nextTask) => {
+        nextTask.flags.cancellationRequested = true;
+        nextTask.flags.cancellationRequestedAt = new Date().toISOString();
+        nextTask.flags.cancellationRequestedBy = getCurrentUser().name;
+        nextTask.flags.cancellationReason = cancellationComment;
+      },
+      "Αίτημα ακύρωσης",
+      `Ο συνεργάτης υπέβαλε αίτημα ακύρωσης: ${cancellationComment}`
+    );
+    state.ui.cancellationComment = "";
+    saveState();
+    render();
+    return;
+  }
+
   if (action === "approve") {
     commitTaskChange(
       taskId,
@@ -901,12 +971,63 @@ function handleWorkflow(taskId, action) {
         task.status = "completed";
         task.flags.validationLock = false;
         task.flags.openIssues = false;
+        task.flags.cancellationRequested = false;
+        task.flags.cancellationRequestedAt = "";
+        task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationReason = "";
         task.completedAt = new Date().toISOString();
       },
       "Έγκριση admin",
       validationComment || "Η εργασία εγκρίθηκε και μεταφέρθηκε σε completed."
     );
     state.ui.validationComment = "";
+    saveState();
+    render();
+      return;
+  }
+
+  if (action === "approve-cancellation") {
+    commitTaskChange(
+      taskId,
+      (task) => {
+        task.status = "assigned";
+        task.assignedUserId = "";
+        task.assignedUserName = "";
+        task.assignedAt = "";
+        task.startDate = "";
+        task.endDate = "";
+        task.completedAt = "";
+        task.flags.validationLock = false;
+        task.flags.openIssues = true;
+        task.flags.cancellationRequested = false;
+        task.flags.cancellationRequestedAt = "";
+        task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationReason = "";
+      },
+      "Έγκριση αιτήματος ακύρωσης",
+      validationComment || "Ο admin ενέκρινε το αίτημα ακύρωσης και η εργασία επέστρεψε σε αναμονή ανάθεσης."
+    );
+    state.ui.validationComment = "";
+    state.ui.cancellationComment = "";
+    saveState();
+    render();
+    return;
+  }
+
+  if (action === "reject-cancellation") {
+    commitTaskChange(
+      taskId,
+      (task) => {
+        task.flags.cancellationRequested = false;
+        task.flags.cancellationRequestedAt = "";
+        task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationReason = "";
+      },
+      "Απόρριψη αιτήματος ακύρωσης",
+      validationComment || "Ο admin απέρριψε το αίτημα ακύρωσης και η εργασία συνεχίζεται."
+    );
+    state.ui.validationComment = "";
+    state.ui.cancellationComment = "";
     saveState();
     render();
     return;
@@ -919,6 +1040,10 @@ function handleWorkflow(taskId, action) {
         task.status = "in_progress";
         task.flags.validationLock = false;
         task.flags.openIssues = true;
+        task.flags.cancellationRequested = false;
+        task.flags.cancellationRequestedAt = "";
+        task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationReason = "";
         task.completedAt = "";
       },
       "Απόρριψη admin",

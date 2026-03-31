@@ -4,6 +4,8 @@ import { HistoryTimeline } from "./HistoryTimeline.js";
 import { PhotoUploader } from "./PhotoUploader.js";
 
 function renderMainTab(task, permissions) {
+  const canEditSchedule = permissions.canManageAssignment || permissions.canScheduleVisit;
+
   return `
     <form class="tab-panel form-grid" data-task-main-form="${escapeHtml(task.id)}">
       <div class="field">
@@ -69,7 +71,7 @@ function renderMainTab(task, permissions) {
       </div>
       <div class="field">
         <span>Ημ/νία έναρξης</span>
-        <input type="datetime-local" name="startDate" value="${escapeHtml(task.startDate)}" ${permissions.canManageAssignment ? "" : "disabled"} />
+        <input type="datetime-local" name="startDate" value="${escapeHtml(task.startDate)}" ${canEditSchedule ? "" : "disabled"} />
       </div>
       <div class="field">
         <span>Ημ/νία λήξης</span>
@@ -280,6 +282,10 @@ function renderSystemTab(task) {
         <article class="system-card"><span>API status</span><strong>${escapeHtml(task.flags.apiStatus)}</strong></article>
         <article class="system-card"><span>Validation lock</span><strong>${task.flags.validationLock ? "ΝΑΙ" : "ΟΧΙ"}</strong></article>
         <article class="system-card"><span>Open issues</span><strong>${task.flags.openIssues ? "ΝΑΙ" : "ΟΧΙ"}</strong></article>
+        <article class="system-card"><span>Cancellation request</span><strong>${task.flags.cancellationRequested ? "ΝΑΙ" : "ΟΧΙ"}</strong></article>
+        <article class="system-card"><span>Cancellation by</span><strong>${escapeHtml(task.flags.cancellationRequestedBy || "-")}</strong></article>
+        <article class="system-card"><span>Cancellation at</span><strong>${task.flags.cancellationRequestedAt ? formatCompactDateTime(task.flags.cancellationRequestedAt) : "Δεν υπάρχει"}</strong></article>
+        <article class="system-card"><span>Cancellation reason</span><strong>${escapeHtml(task.flags.cancellationReason || "-")}</strong></article>
       </div>
     </section>
   `;
@@ -307,11 +313,23 @@ function renderTabContent(task, activeTab, permissions) {
   }
 }
 
-function renderWorkflowActions(task, permissions, validationComment) {
+function renderWorkflowActions(task, permissions, validationComment, cancellationComment) {
   return `
     <div class="detail-side__section">
       <h3>Workflow actions</h3>
       <p class="muted">Ο admin δημιουργεί και αναθέτει. Ο συνεργάτης εκτελεί και παραδίδει για έλεγχο.</p>
+
+      ${
+        task.flags.cancellationRequested
+          ? `
+            <div class="alert-banner alert-banner--warning">
+              <strong>Αίτημα ακύρωσης σε εκκρεμότητα</strong>
+              <span>${escapeHtml(task.flags.cancellationRequestedBy || "Συνεργάτης")} · ${task.flags.cancellationRequestedAt ? formatCompactDateTime(task.flags.cancellationRequestedAt) : "Τώρα"}</span>
+              <p>${escapeHtml(task.flags.cancellationReason || "Δεν υπάρχει σχόλιο.")}</p>
+            </div>
+          `
+          : ""
+      }
 
       ${
         permissions.canStart
@@ -326,7 +344,19 @@ function renderWorkflowActions(task, permissions, validationComment) {
       }
 
       ${
-        permissions.canApprove || permissions.canReject
+        permissions.canRequestCancellation
+          ? `
+            <label class="field">
+              <span>Αιτιολογία αιτήματος ακύρωσης</span>
+              <textarea rows="4" data-cancellation-comment>${escapeHtml(cancellationComment)}</textarea>
+            </label>
+            <button class="button button--ghost" data-workflow-action="request-cancellation" data-task-id="${escapeHtml(task.id)}">Αίτημα ακύρωσης</button>
+          `
+          : ""
+      }
+
+      ${
+        permissions.canApprove || permissions.canReject || permissions.canApproveCancellation || permissions.canRejectCancellation
           ? `
             <label class="field">
               <span>Σχόλιο admin</span>
@@ -347,11 +377,23 @@ function renderWorkflowActions(task, permissions, validationComment) {
           ? `<button class="button button--danger" data-workflow-action="reject" data-task-id="${escapeHtml(task.id)}">Απόρριψη και επιστροφή</button>`
           : ""
       }
+
+      ${
+        permissions.canApproveCancellation
+          ? `<button class="button button--danger" data-workflow-action="approve-cancellation" data-task-id="${escapeHtml(task.id)}">Έγκριση ακύρωσης</button>`
+          : ""
+      }
+
+      ${
+        permissions.canRejectCancellation
+          ? `<button class="button button--secondary" data-workflow-action="reject-cancellation" data-task-id="${escapeHtml(task.id)}">Απόρριψη αιτήματος ακύρωσης</button>`
+          : ""
+      }
     </div>
   `;
 }
 
-export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, currentUserName, validationComment }) {
+export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
   const tabs = [
     ["main", "Κύριος"],
     ["photos", "Φωτογραφίες"],
@@ -435,7 +477,7 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
             </dl>
           </div>
 
-          ${renderWorkflowActions(task, permissions, validationComment)}
+          ${renderWorkflowActions(task, permissions, validationComment, cancellationComment)}
 
           <div class="detail-side__section">
             <h3>Uploads</h3>

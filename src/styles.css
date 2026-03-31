@@ -815,6 +815,34 @@ svg {
   border-top: 1px solid rgba(18, 52, 70, 0.08);
 }
 
+.alert-banner {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(18, 52, 70, 0.1);
+}
+
+.alert-banner strong,
+.alert-banner span,
+.alert-banner p {
+  display: block;
+}
+
+.alert-banner span,
+.alert-banner p {
+  margin-top: 6px;
+}
+
+.alert-banner p {
+  margin-bottom: 0;
+}
+
+.alert-banner--warning {
+  color: #81550a;
+  background: rgba(240, 161, 29, 0.16);
+  border-color: rgba(240, 161, 29, 0.26);
+}
+
 .mini-spec,
 .floor-card dl {
   margin: 0;

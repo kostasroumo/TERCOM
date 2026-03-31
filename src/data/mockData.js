@@ -129,7 +129,11 @@ const tasks = [
       apiStatus: "SYNCED",
       validationLock: false,
       openIssues: false,
-      smartReadiness: "Σε αναμονή πρόσβασης"
+      smartReadiness: "Σε αναμονή πρόσβασης",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [
       {
@@ -210,7 +214,11 @@ const tasks = [
       apiStatus: "LOCAL-ONLY",
       validationLock: false,
       openIssues: false,
-      smartReadiness: "ΝΑΙ"
+      smartReadiness: "ΝΑΙ",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [
       {
@@ -282,7 +290,11 @@ const tasks = [
       apiStatus: "SYNCED",
       validationLock: false,
       openIssues: false,
-      smartReadiness: "N/A"
+      smartReadiness: "N/A",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [],
     files: [],
@@ -333,7 +345,11 @@ const tasks = [
       apiStatus: "SYNCED",
       validationLock: true,
       openIssues: false,
-      smartReadiness: "ΝΑΙ"
+      smartReadiness: "ΝΑΙ",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [
       {
@@ -404,7 +420,11 @@ const tasks = [
       apiStatus: "SYNCED",
       validationLock: false,
       openIssues: false,
-      smartReadiness: "N/A"
+      smartReadiness: "N/A",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [
       {
@@ -466,7 +486,11 @@ const tasks = [
       apiStatus: "PENDING",
       validationLock: false,
       openIssues: false,
-      smartReadiness: "Άγνωστο"
+      smartReadiness: "Άγνωστο",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
     },
     photos: [],
     files: [],
@@ -506,6 +530,7 @@ export function createInitialState() {
       activeTab: "main",
       showCreateModal: false,
       validationComment: "",
+      cancellationComment: "",
       exportReturnRoute: "#/dashboard",
       reportAutoPrint: false
     },
