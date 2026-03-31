@@ -53,6 +53,10 @@ function saveState() {
   }
 }
 
+function confirmAction(message) {
+  return window.confirm(message);
+}
+
 function getRoute() {
   const hash = window.location.hash.replace(/^#\/?/, "");
 
@@ -652,6 +656,9 @@ function handleSubmit(event) {
   const createForm = event.target.closest("[data-create-task-form]");
   if (createForm) {
     event.preventDefault();
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να δημιουργήσετε τη νέα εργασία;")) {
+      return;
+    }
     createTaskFromForm(new FormData(createForm));
     return;
   }
@@ -659,6 +666,9 @@ function handleSubmit(event) {
   const mainForm = event.target.closest("[data-task-main-form]");
   if (mainForm) {
     event.preventDefault();
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε τις αλλαγές της εργασίας;")) {
+      return;
+    }
     updateTaskCore(mainForm.getAttribute("data-task-main-form"), new FormData(mainForm));
     return;
   }
@@ -666,6 +676,9 @@ function handleSubmit(event) {
   const materialForm = event.target.closest("[data-material-form]");
   if (materialForm) {
     event.preventDefault();
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε το νέο υλικό;")) {
+      return;
+    }
     addMaterial(materialForm.getAttribute("data-material-form"), new FormData(materialForm));
     return;
   }
@@ -673,6 +686,9 @@ function handleSubmit(event) {
   const safetyForm = event.target.closest("[data-safety-form]");
   if (safetyForm) {
     event.preventDefault();
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε το Health & Safety survey;")) {
+      return;
+    }
     updateSafety(safetyForm.getAttribute("data-safety-form"), new FormData(safetyForm));
   }
 }
@@ -1029,6 +1045,10 @@ function handleWorkflow(taskId, action) {
   }
 
   if (action === "reject-cancellation") {
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να απορρίψετε το αίτημα ακύρωσης;")) {
+      return;
+    }
+
     commitTaskChange(
       taskId,
       (task) => {
@@ -1048,6 +1068,10 @@ function handleWorkflow(taskId, action) {
   }
 
   if (action === "reject") {
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να απορρίψετε την εργασία και να την επιστρέψετε στον συνεργάτη;")) {
+      return;
+    }
+
     commitTaskChange(
       taskId,
       (task) => {
