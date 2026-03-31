@@ -1,4 +1,4 @@
-import { STATUS_META, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
+import { STATUS_META, STATUS_OPTIONS_ORDER, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
 import { escapeHtml, formatCompactDateTime, formatDateTime, formatElapsedDays, formatFileSize, icon } from "../lib/helpers.js";
 import { HistoryTimeline } from "./HistoryTimeline.js";
 import { PhotoUploader } from "./PhotoUploader.js";
@@ -21,7 +21,7 @@ function renderMainTab(task, permissions) {
       <div class="field">
         <span>Κατάσταση</span>
         <select name="status" ${permissions.canEditStatusDirectly ? "" : "disabled"}>
-          ${STATUS_ORDER.map((status) => `<option value="${status}"${task.status === status ? " selected" : ""}>${escapeHtml(STATUS_META[status].label)}</option>`).join("")}
+          ${STATUS_OPTIONS_ORDER.map((status) => `<option value="${status}"${task.status === status ? " selected" : ""}>${escapeHtml(STATUS_META[status].label)}</option>`).join("")}
         </select>
       </div>
       <div class="field">

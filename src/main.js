@@ -4,7 +4,7 @@ import { TaskTable } from "./components/TaskTable.js";
 import { createInitialState, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v4";
+const STORAGE_KEY = "birol-field-ops-prototype-v5";
 const app = document.querySelector("#app");
 
 let state = loadState();
@@ -711,7 +711,7 @@ function createTaskFromForm(formData) {
     id: createId("TASK"),
     title: formData.get("title"),
     type: formData.get("type"),
-    status: "assigned",
+    status: "unassigned",
     address: formData.get("address"),
     city: formData.get("city"),
     customerName: formData.get("customerName"),
@@ -847,8 +847,10 @@ function updateTaskCore(taskId, formData) {
         task.status = nextValues.status;
       }
 
-      if (["assigned", "scheduled"].includes(task.status)) {
-        if (task.assignedUserId && task.startDate) {
+      if (["unassigned", "assigned", "scheduled"].includes(task.status)) {
+        if (!task.assignedUserId) {
+          task.status = "unassigned";
+        } else if (task.startDate) {
           task.status = "scheduled";
         } else {
           task.status = "assigned";
@@ -990,7 +992,7 @@ function handleWorkflow(taskId, action) {
     commitTaskChange(
       taskId,
       (task) => {
-        task.status = "assigned";
+        task.status = "unassigned";
         task.assignedUserId = "";
         task.assignedUserName = "";
         task.assignedAt = "";

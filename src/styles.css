@@ -639,6 +639,11 @@ svg {
   font-weight: 700;
 }
 
+.pill--unassigned {
+  color: #4a6070;
+  background: rgba(122, 144, 160, 0.2);
+}
+
 .pill--assigned {
   color: #764a02;
   background: rgba(244, 181, 19, 0.22);

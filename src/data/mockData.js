@@ -6,6 +6,12 @@ export const ROLE_LABELS = {
 };
 
 export const STATUS_META = {
+  unassigned: {
+    label: "Μη ανατεθειμένη",
+    tone: "unassigned",
+    icon: "tasks",
+    hint: "Η εργασία δημιουργήθηκε και περιμένει ανάθεση"
+  },
   assigned: {
     label: "Ανατέθηκε",
     tone: "assigned",
@@ -39,6 +45,15 @@ export const STATUS_META = {
 };
 
 export const STATUS_ORDER = [
+  "assigned",
+  "scheduled",
+  "in_progress",
+  "pending_validation",
+  "completed"
+];
+
+export const STATUS_OPTIONS_ORDER = [
+  "unassigned",
   "assigned",
   "scheduled",
   "in_progress",
@@ -264,7 +279,7 @@ const tasks = [
     id: "TASK-24033",
     title: "Repair ticket για πτώση σήματος",
     type: "repair",
-    status: "assigned",
+    status: "unassigned",
     address: "Πίνδου 19",
     city: "Θεσσαλονίκη",
     customerName: "Χρήστος Νικολάου",
@@ -460,7 +475,7 @@ const tasks = [
     id: "TASK-24036",
     title: "Νέα εργασία χαρτογράφησης καλωδίωσης",
     type: "survey",
-    status: "assigned",
+    status: "unassigned",
     address: "Σπύρου Λούη 12",
     city: "Λάρισα",
     customerName: "Κατερίνα Ράλλη",
