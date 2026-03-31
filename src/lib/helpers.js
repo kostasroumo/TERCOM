@@ -51,6 +51,36 @@ export function formatCompactDateTime(value) {
   }).format(new Date(value));
 }
 
+export function countElapsedDays(startValue, endValue) {
+  if (!startValue) {
+    return null;
+  }
+
+  const start = new Date(startValue);
+  const end = endValue ? new Date(endValue) : new Date();
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  const diffMs = Math.max(0, end.getTime() - start.getTime());
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+export function formatElapsedDays(startValue, endValue) {
+  const days = countElapsedDays(startValue, endValue);
+
+  if (days === null) {
+    return "Δεν έχει οριστεί";
+  }
+
+  if (days === 1) {
+    return "1 ημέρα";
+  }
+
+  return `${days} ημέρες`;
+}
+
 export function formatFileSize(size) {
   if (!size && size !== 0) {
     return "-";

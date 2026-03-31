@@ -1,5 +1,5 @@
 import { STATUS_META, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
-import { escapeHtml, formatCompactDateTime, formatDateTime, formatFileSize, icon } from "../lib/helpers.js";
+import { escapeHtml, formatCompactDateTime, formatDateTime, formatElapsedDays, formatFileSize, icon } from "../lib/helpers.js";
 import { HistoryTimeline } from "./HistoryTimeline.js";
 import { PhotoUploader } from "./PhotoUploader.js";
 
@@ -270,6 +270,10 @@ function renderSystemTab(task) {
       <div class="system-grid">
         <article class="system-card"><span>Task ID</span><strong>${escapeHtml(task.id)}</strong></article>
         <article class="system-card"><span>Created at</span><strong>${formatCompactDateTime(task.createdAt)}</strong></article>
+        <article class="system-card"><span>Ημέρες ανοιχτό από δημιουργία</span><strong>${formatElapsedDays(task.createdAt, task.completedAt)}</strong></article>
+        <article class="system-card"><span>Assigned at</span><strong>${formatCompactDateTime(task.assignedAt)}</strong></article>
+        <article class="system-card"><span>Ημέρες από ανάθεση</span><strong>${task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί"}</strong></article>
+        <article class="system-card"><span>Completed at</span><strong>${task.completedAt ? formatCompactDateTime(task.completedAt) : "Δεν έχει ολοκληρωθεί"}</strong></article>
         <article class="system-card"><span>Created by</span><strong>${escapeHtml(task.createdBy)}</strong></article>
         <article class="system-card"><span>Updated at</span><strong>${formatCompactDateTime(task.updatedAt)}</strong></article>
         <article class="system-card"><span>Updated by</span><strong>${escapeHtml(task.updatedBy)}</strong></article>
@@ -421,6 +425,10 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
               <div><dt>Πελάτης</dt><dd>${escapeHtml(task.customerName || "-")}</dd></div>
               <div><dt>Team</dt><dd>${escapeHtml(task.resourceTeam)}</dd></div>
               <div><dt>Partner</dt><dd>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</dd></div>
+              <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
+              <div><dt>Ημέρες ανοιχτό</dt><dd>${formatElapsedDays(task.createdAt, task.completedAt)}</dd></div>
+              <div><dt>Ανάθεση</dt><dd>${task.assignedAt ? formatCompactDateTime(task.assignedAt) : "Δεν έχει ανατεθεί"}</dd></div>
+              <div><dt>Από ανάθεση</dt><dd>${task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί"}</dd></div>
               <div><dt>Window</dt><dd>${task.startDate ? formatCompactDateTime(task.startDate) : "Δεν ορίστηκε"}</dd></div>
               <div><dt>API</dt><dd>${escapeHtml(task.flags.apiStatus)}</dd></div>
               <div><dt>Smart readiness</dt><dd>${escapeHtml(task.flags.smartReadiness)}</dd></div>

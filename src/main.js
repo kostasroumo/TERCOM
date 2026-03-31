@@ -2,7 +2,7 @@ import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
 import { createInitialState, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
-import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, icon } from "./lib/helpers.js";
+import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
 const STORAGE_KEY = "birol-field-ops-prototype-v3";
 const app = document.querySelector("#app");
@@ -97,6 +97,8 @@ function normalizeTask(task) {
     landlinePhone: task.landlinePhone || "",
     srId: task.srId || task.projectId || "",
     bid: task.bid || task.serviceRequestId || "",
+    assignedAt: task.assignedAt || (task.assignedUserId ? task.startDate || task.createdAt || "" : ""),
+    completedAt: task.completedAt || (task.status === "completed" ? task.endDate || task.updatedAt || "" : ""),
     assignedUserId: task.assignedUserId || "",
     assignedUserName: task.assignedUserName || ""
   };
@@ -356,6 +358,9 @@ function renderOpenTasksReport(openTasks) {
             <div><strong>BID</strong><span>${escapeHtml(task.bid)}</span></div>
             <div><strong>Team</strong><span>${escapeHtml(task.resourceTeam)}</span></div>
             <div><strong>Ανατέθηκε σε</strong><span>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</span></div>
+            <div><strong>Assigned at</strong><span>${task.assignedAt ? escapeHtml(formatDateTime(task.assignedAt)) : "Δεν έχει ανατεθεί"}</span></div>
+            <div><strong>Από δημιουργία</strong><span>${escapeHtml(formatElapsedDays(task.createdAt, task.completedAt))}</span></div>
+            <div><strong>Από ανάθεση</strong><span>${escapeHtml(task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί")}</span></div>
             <div><strong>Έναρξη</strong><span>${escapeHtml(formatDateTime(task.startDate))}</span></div>
             <div><strong>Λήξη</strong><span>${escapeHtml(formatDateTime(task.endDate))}</span></div>
             <div><strong>Created</strong><span>${escapeHtml(task.createdBy)} · ${escapeHtml(formatDateTime(task.createdAt))}</span></div>
@@ -685,6 +690,8 @@ function createTaskFromForm(formData) {
     bid: formData.get("bid"),
     projectName: formData.get("projectName"),
     resourceTeam: formData.get("resourceTeam"),
+    assignedAt: "",
+    completedAt: "",
     assignedUserId: "",
     assignedUserName: "",
     startDate,
@@ -789,11 +796,16 @@ function updateTaskCore(taskId, formData) {
       }
 
       if (nextValues.assignedUserId !== undefined && assignedUser) {
+        const assignmentChanged = task.assignedUserId !== assignedUser.id;
         task.assignedUserId = assignedUser.id;
         task.assignedUserName = assignedUser.name;
+        if (assignmentChanged || !task.assignedAt) {
+          task.assignedAt = new Date().toISOString();
+        }
       } else if (nextValues.assignedUserId !== undefined) {
         task.assignedUserId = "";
         task.assignedUserName = "";
+        task.assignedAt = "";
       }
 
       if (state.currentRole === "admin" && nextValues.status && !["scheduled", "in_progress"].includes(nextValues.status)) {
@@ -806,6 +818,12 @@ function updateTaskCore(taskId, formData) {
         } else {
           task.status = "assigned";
         }
+      }
+
+      if (task.status === "completed") {
+        task.completedAt ||= new Date().toISOString();
+      } else if (task.status !== "completed") {
+        task.completedAt = "";
       }
     },
     "Ενημέρωση κύριων στοιχείων",
@@ -883,6 +901,7 @@ function handleWorkflow(taskId, action) {
         task.status = "completed";
         task.flags.validationLock = false;
         task.flags.openIssues = false;
+        task.completedAt = new Date().toISOString();
       },
       "Έγκριση admin",
       validationComment || "Η εργασία εγκρίθηκε και μεταφέρθηκε σε completed."
@@ -900,6 +919,7 @@ function handleWorkflow(taskId, action) {
         task.status = "in_progress";
         task.flags.validationLock = false;
         task.flags.openIssues = true;
+        task.completedAt = "";
       },
       "Απόρριψη admin",
       validationComment || "Η εργασία επιστράφηκε στον partner για διορθώσεις."
