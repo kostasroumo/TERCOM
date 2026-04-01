@@ -588,6 +588,7 @@ export function createInitialState() {
     ui: {
       activeTab: "main",
       showCreateModal: false,
+      sidebarCollapsed: false,
       validationComment: "",
       cancellationComment: "",
       exportReturnRoute: "#/dashboard",

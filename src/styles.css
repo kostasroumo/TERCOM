@@ -1,4 +1,5 @@
 :root {
+  --sidebar-width: 290px;
   --bg: #edf3f5;
   --bg-strong: #dce8ec;
   --surface: rgba(255, 255, 255, 0.88);
@@ -64,8 +65,13 @@ svg {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 220ms ease;
+}
+
+.app-shell.is-sidebar-collapsed {
+  --sidebar-width: 108px;
 }
 
 .sidebar {
@@ -80,12 +86,21 @@ svg {
   background:
     radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 30%),
     linear-gradient(180deg, #103244 0%, #183c50 48%, #0f2b3d 100%);
+  transition: padding 220ms ease;
+}
+
+.sidebar__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .brand__mark {
@@ -97,6 +112,28 @@ svg {
   color: #16394f;
   background: linear-gradient(135deg, #ffffff, #dbeef3);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.brand__mark--logo {
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 10px 22px rgba(4, 25, 36, 0.18),
+    inset 0 0 0 1px rgba(19, 60, 82, 0.08);
+}
+
+.brand__mark--logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.brand__copy {
+  min-width: 0;
+  transition: opacity 180ms ease, transform 180ms ease, width 180ms ease;
 }
 
 .brand strong,
@@ -105,7 +142,8 @@ svg {
 }
 
 .brand strong {
-  font-size: 1.05rem;
+  font-size: 1.18rem;
+  letter-spacing: 0.08em;
 }
 
 .brand span,
@@ -118,6 +156,31 @@ svg {
   margin-top: 3px;
   color: rgba(255, 255, 255, 0.72);
   font-size: 0.9rem;
+}
+
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  color: #f3fbff;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.sidebar-toggle:hover {
+  transform: translateX(-2px);
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.sidebar-toggle span {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .nav {
@@ -146,9 +209,14 @@ svg {
   background: rgba(255, 255, 255, 0.12);
 }
 
-.nav-link span:first-child {
+.nav-link__icon {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
+}
+
+.nav-link__label {
+  transition: opacity 180ms ease, transform 180ms ease, width 180ms ease;
 }
 
 .nav-link--action {
@@ -188,6 +256,43 @@ svg {
 
 .workspace {
   padding: 22px;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar {
+  padding-inline: 16px;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar__head {
+  align-items: center;
+  flex-direction: column;
+}
+
+.app-shell.is-sidebar-collapsed .brand {
+  justify-content: center;
+}
+
+.app-shell.is-sidebar-collapsed .brand__copy {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(-8px);
+}
+
+.app-shell.is-sidebar-collapsed .nav-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-shell.is-sidebar-collapsed .nav-link:hover,
+.app-shell.is-sidebar-collapsed .nav-link.is-active {
+  transform: translateY(-2px);
+}
+
+.app-shell.is-sidebar-collapsed .nav-link__label {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(-8px);
 }
 
 .surface {
@@ -1273,6 +1378,36 @@ svg {
   .sidebar {
     position: relative;
     height: auto;
+  }
+
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .app-shell.is-sidebar-collapsed .sidebar {
+    padding-inline: 22px;
+  }
+
+  .app-shell.is-sidebar-collapsed .sidebar__head {
+    align-items: flex-start;
+    flex-direction: row;
+  }
+
+  .app-shell.is-sidebar-collapsed .brand {
+    justify-content: flex-start;
+  }
+
+  .app-shell.is-sidebar-collapsed .brand__copy,
+  .app-shell.is-sidebar-collapsed .nav-link__label {
+    width: auto;
+    opacity: 1;
+    overflow: visible;
+    transform: none;
+  }
+
+  .app-shell.is-sidebar-collapsed .nav-link {
+    justify-content: flex-start;
+    padding-inline: 16px;
   }
 
   .detail-layout,

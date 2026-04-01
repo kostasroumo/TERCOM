@@ -5,6 +5,7 @@ import { createInitialState, PIPELINE_META, PIPELINE_ORDER, ROLE_LABELS, STATUS_
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
 const STORAGE_KEY = "birol-field-ops-prototype-v6";
+const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
 const app = document.querySelector("#app");
 
 let state = loadState();
@@ -32,6 +33,7 @@ function loadState() {
     parsed.ui = {
       activeTab: "main",
       showCreateModal: false,
+      sidebarCollapsed: false,
       validationComment: "",
       cancellationComment: "",
       exportReturnRoute: "#/dashboard",
@@ -156,6 +158,21 @@ function getVisibleTasks() {
   return state.tasks.filter((task) => task.assignedUserId === currentUser.id);
 }
 
+function hasCompletedPipeline(task, pipelineKey) {
+  return (
+    (task.pipeline === pipelineKey && task.status === "completed") ||
+    (task.pipelineHistory || []).some((entry) => entry.pipeline === pipelineKey)
+  );
+}
+
+function countTasksForPipelineStatus(tasks, pipelineKey, statusKey) {
+  if (statusKey === "completed") {
+    return tasks.filter((task) => hasCompletedPipeline(task, pipelineKey)).length;
+  }
+
+  return tasks.filter((task) => task.pipeline === pipelineKey && task.status === statusKey).length;
+}
+
 function getPermissions(task) {
   const currentUser = getCurrentUser();
   const isAdmin = state.currentRole === "admin";
@@ -206,8 +223,13 @@ function getFilteredTasks() {
         .toLowerCase()
         .includes(searchText);
 
-    const matchesStatus = state.filters.status === "all" || task.status === state.filters.status;
-    const matchesPipeline = state.filters.pipeline === "all" || task.pipeline === state.filters.pipeline;
+    const historicalCompletedFilter = state.filters.status === "completed" && state.filters.pipeline !== "all";
+    const matchesStatus =
+      state.filters.status === "all" ||
+      (historicalCompletedFilter ? hasCompletedPipeline(task, state.filters.pipeline) : task.status === state.filters.status);
+    const matchesPipeline =
+      state.filters.pipeline === "all" ||
+      (historicalCompletedFilter ? true : task.pipeline === state.filters.pipeline);
     const matchesCity = state.filters.city === "all" || task.city === state.filters.city;
     const matchesTechnician = state.filters.technician === "all" || task.assignedUserId === state.filters.technician;
 
@@ -222,28 +244,41 @@ function render() {
   const currentUser = getCurrentUser();
 
   app.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell${state.ui.sidebarCollapsed ? " is-sidebar-collapsed" : ""}">
       <aside class="sidebar">
-        <div class="brand">
-          <div class="brand__mark">${icon("dashboard")}</div>
-          <div>
-            <strong>Field Ops Control</strong>
-            <span>Enterprise workflow prototype</span>
+        <div class="sidebar__head">
+          <div class="brand">
+            <div class="brand__mark brand__mark--logo">
+              <img src="${COMPANY_LOGO_SRC}" alt="TERCOM logo" />
+            </div>
+            <div class="brand__copy">
+              <strong>TERCOM</strong>
+              <span>Field Ops Control</span>
+            </div>
           </div>
+          <button
+            class="sidebar-toggle"
+            type="button"
+            data-toggle-sidebar
+            aria-label="${state.ui.sidebarCollapsed ? "Άνοιγμα πλαϊνού μενού" : "Σύμπτυξη πλαϊνού μενού"}"
+            title="${state.ui.sidebarCollapsed ? "Άνοιγμα πλαϊνού μενού" : "Σύμπτυξη πλαϊνού μενού"}"
+          >
+            <span>${state.ui.sidebarCollapsed ? ">" : "<"}</span>
+          </button>
         </div>
 
         <nav class="nav">
           <button class="nav-link${route.view === "dashboard" ? " is-active" : ""}" data-route="#/dashboard">
-            <span>${icon("dashboard")}</span>
-            <span>Dashboard</span>
+            <span class="nav-link__icon">${icon("dashboard")}</span>
+            <span class="nav-link__label">Dashboard</span>
           </button>
           <button class="nav-link${route.view === "tasks" || route.view === "detail" ? " is-active" : ""}" data-route="#/tasks">
-            <span>${icon("tasks")}</span>
-            <span>Εργασίες</span>
+            <span class="nav-link__icon">${icon("tasks")}</span>
+            <span class="nav-link__label">Εργασίες</span>
           </button>
           <button class="nav-link nav-link--action${route.view === "report" ? " is-active" : ""}" data-export-open-pdf>
-            <span>${icon("print")}</span>
-            <span>Export PDF</span>
+            <span class="nav-link__icon">${icon("print")}</span>
+            <span class="nav-link__label">Export PDF</span>
           </button>
         </nav>
       </aside>
@@ -346,7 +381,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
     <section class="pipeline-dashboard">
       ${PIPELINE_ORDER.map((pipelineKey) => {
         const pipelineTasks = visibleTasks.filter((task) => task.pipeline === pipelineKey);
-        const counts = STATUS_ORDER.map((status) => [status, countByStatus(pipelineTasks, status)]);
+        const counts = STATUS_ORDER.map((status) => [status, countTasksForPipelineStatus(visibleTasks, pipelineKey, status)]);
 
         return `
           <section class="pipeline-section">
@@ -356,7 +391,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
                 <h2>${escapeHtml(PIPELINE_META[pipelineKey].label)}</h2>
                 <p class="section-copy">${escapeHtml(PIPELINE_META[pipelineKey].hint)}</p>
               </div>
-              <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${pipelineTasks.length} εργασίες</span>
+              <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${pipelineTasks.length} τρέχουσες</span>
             </div>
             <div class="status-grid">
               ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey)).join("")}
@@ -611,6 +646,13 @@ function handleClick(event) {
 
   if (event.target.closest("[data-close-modal]")) {
     state.ui.showCreateModal = false;
+    saveState();
+    render();
+    return;
+  }
+
+  if (event.target.closest("[data-toggle-sidebar]")) {
+    state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed;
     saveState();
     render();
     return;
