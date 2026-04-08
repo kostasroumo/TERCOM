@@ -77,12 +77,18 @@ export const PIPELINE_META = {
   leitourgies_inwn: {
     label: "Λειτουργίες Ινών",
     tone: "pipeline-leitourgies-inwn",
-    hint: "Επόμενη επιχειρησιακή φάση για τις εργασίες ινών μετά την αυτοψία.",
+    hint: "Κύρια επιχειρησιακή φάση για τις εργασίες ινών μετά την αυτοψία.",
+    next: "syntirisi_loipes"
+  },
+  syntirisi_loipes: {
+    label: "Συντήρηση / Λοιπές Εργασίες",
+    tone: "pipeline-syntirisi-loipes",
+    hint: "Τελική φάση για πρόσθετες, μεταγενέστερες ή διορθωτικές εργασίες.",
     next: null
   }
 };
 
-export const PIPELINE_ORDER = ["autopsia", "leitourgies_inwn"];
+export const PIPELINE_ORDER = ["autopsia", "leitourgies_inwn", "syntirisi_loipes"];
 
 export const PHOTO_CATEGORIES = [
   { value: "before", label: "Πριν" },
@@ -434,7 +440,7 @@ const tasks = [
     id: "TASK-24035",
     title: "Κλείσιμο αποκατάστασης σε cabinet cluster",
     type: "repair",
-    pipeline: "leitourgies_inwn",
+    pipeline: "syntirisi_loipes",
     status: "completed",
     address: "25ης Μαρτίου 61",
     city: "Ηράκλειο",
@@ -487,6 +493,13 @@ const tasks = [
         details: "Η φάση Αυτοψία εγκρίθηκε και η ίδια εργασία άνοιξε στη φάση Λειτουργίες Ινών."
       },
       {
+        id: "HIST-7B",
+        author: "Admin 1",
+        at: "2026-03-24T12:00",
+        summary: "Μετάβαση στο pipeline Συντήρηση / Λοιπές Εργασίες",
+        details: "Η φάση Λειτουργίες Ινών εγκρίθηκε και η ίδια εργασία άνοιξε στη φάση Συντήρηση / Λοιπές Εργασίες."
+      },
+      {
         id: "HIST-7",
         author: "Admin 1",
         at: "2026-03-24T16:30",
@@ -495,6 +508,12 @@ const tasks = [
       }
     ],
     pipelineHistory: [
+      {
+        id: "PIPE-2",
+        pipeline: "leitourgies_inwn",
+        completedAt: "2026-03-24T12:00",
+        approvedBy: "Admin 1"
+      },
       {
         id: "PIPE-1",
         pipeline: "autopsia",

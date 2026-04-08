@@ -801,6 +801,11 @@ svg {
   background: rgba(208, 159, 33, 0.22);
 }
 
+.pill--pipeline-syntirisi-loipes {
+  color: #5a3f73;
+  background: rgba(170, 132, 208, 0.22);
+}
+
 .detail-view {
   margin-top: 24px;
 }
