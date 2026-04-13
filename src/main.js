@@ -249,6 +249,43 @@ function getFilteredTasks() {
   });
 }
 
+function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
+  return `
+    <section class="surface">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Admin Queue</p>
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+        <div>
+          <p class="section-copy">${escapeHtml(copy)}</p>
+          ${filterStatus ? `<button class="button button--ghost queue-head-action" data-route="#/tasks" data-filter-status="${escapeHtml(filterStatus)}">${tasks.length} συνολικά</button>` : ""}
+        </div>
+      </div>
+
+      ${
+        tasks.length
+          ? `
+            <div class="queue-list">
+              ${tasks
+                .map(
+                  (task) => `
+                    <button class="queue-item" data-open-task="${escapeHtml(task.id)}">
+                      <strong>${escapeHtml(task.title)}</strong>
+                      <span>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
+                      <span>${escapeHtml(task.assignedUserName || "Χωρίς συνεργάτη")} · ${escapeHtml(STATUS_META[task.status]?.label || task.status)}</span>
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : `<div class="empty-state"><p>${escapeHtml(emptyMessage)}</p></div>`
+      }
+    </section>
+  `;
+}
+
 function render() {
   const route = getRoute();
   const visibleTasks = getVisibleTasks();
@@ -411,6 +448,29 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
           </section>
         `;
       }).join("")}
+
+      ${
+        state.currentRole === "admin"
+          ? `
+            <section class="overview-grid">
+              ${renderAdminQueue(
+                "Αιτήματα Ακύρωσης",
+                "Όλα τα ενεργά αιτήματα ακύρωσης που περιμένουν ενέργεια από admin.",
+                visibleTasks.filter((task) => task.flags.cancellationRequested),
+                "Δεν υπάρχουν ενεργά αιτήματα ακύρωσης.",
+                ""
+              )}
+              ${renderAdminQueue(
+                "Ακυρωμένες Εργασίες",
+                "Εργασίες που ακυρώθηκαν και μπορούν να ανοιχτούν ξανά για νέα ανάθεση.",
+                visibleTasks.filter((task) => task.status === "cancelled"),
+                "Δεν υπάρχουν ακυρωμένες εργασίες.",
+                "cancelled"
+              )}
+            </section>
+          `
+          : ""
+      }
     </section>
   `;
 }
@@ -963,10 +1023,10 @@ function updateTaskCore(taskId, formData) {
         task.status = nextValues.status;
       }
 
-      if (["unassigned", "assigned", "scheduled"].includes(task.status)) {
+      if (["unassigned", "assigned", "scheduled", "cancelled"].includes(task.status)) {
         if (!task.assignedUserId) {
-          task.status = "unassigned";
-        } else if (assignmentChanged || task.status === "unassigned") {
+          task.status = task.status === "cancelled" ? "cancelled" : "unassigned";
+        } else if (assignmentChanged || ["unassigned", "cancelled"].includes(task.status)) {
           task.status = "assigned";
         } else if (task.status === "scheduled" && !task.startDate) {
           task.status = "assigned";
