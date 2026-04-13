@@ -266,12 +266,29 @@ function renderSafetyTab(task, permissions) {
   `;
 }
 
-function renderSystemTab(task) {
+function renderSystemTab(task, permissions) {
   const completedPipelines = task.pipelineHistory.length
     ? task.pipelineHistory
         .map((entry) => `${PIPELINE_META[entry.pipeline]?.label || entry.pipeline} · ${formatCompactDateTime(entry.completedAt)}`)
         .join(" | ")
     : "Δεν υπάρχουν ολοκληρωμένα προηγούμενα pipelines";
+
+  const adminCreatedSpec = permissions.canManageAssignment
+    ? `
+        <article class="system-card"><span>Created at</span><strong>${formatCompactDateTime(task.createdAt)}</strong></article>
+        <article class="system-card"><span>Ημέρες ανοιχτό από δημιουργία</span><strong>${formatElapsedDays(task.createdAt, task.completedAt)}</strong></article>
+      `
+    : "";
+
+  const assignmentSpec = task.assignedAt
+    ? `
+        <article class="system-card"><span>Assigned at</span><strong>${formatCompactDateTime(task.assignedAt)}</strong></article>
+        <article class="system-card"><span>Ημέρες από ανάθεση</span><strong>${formatElapsedDays(task.assignedAt, task.completedAt)}</strong></article>
+      `
+    : `
+        <article class="system-card"><span>Assigned at</span><strong>Δεν έχει ανατεθεί</strong></article>
+        <article class="system-card"><span>Ημέρες από ανάθεση</span><strong>Δεν έχει ανατεθεί</strong></article>
+      `;
 
   return `
     <section class="tab-panel">
@@ -279,10 +296,8 @@ function renderSystemTab(task) {
         <article class="system-card"><span>Current pipeline</span><strong>${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</strong></article>
         <article class="system-card"><span>Pipeline history</span><strong>${escapeHtml(completedPipelines)}</strong></article>
         <article class="system-card"><span>Task ID</span><strong>${escapeHtml(task.id)}</strong></article>
-        <article class="system-card"><span>Created at</span><strong>${formatCompactDateTime(task.createdAt)}</strong></article>
-        <article class="system-card"><span>Ημέρες ανοιχτό από δημιουργία</span><strong>${formatElapsedDays(task.createdAt, task.completedAt)}</strong></article>
-        <article class="system-card"><span>Assigned at</span><strong>${formatCompactDateTime(task.assignedAt)}</strong></article>
-        <article class="system-card"><span>Ημέρες από ανάθεση</span><strong>${task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί"}</strong></article>
+        ${adminCreatedSpec}
+        ${assignmentSpec}
         <article class="system-card"><span>Completed at</span><strong>${task.completedAt ? formatCompactDateTime(task.completedAt) : "Δεν έχει ολοκληρωθεί"}</strong></article>
         <article class="system-card"><span>Created by</span><strong>${escapeHtml(task.createdBy)}</strong></article>
         <article class="system-card"><span>Updated at</span><strong>${formatCompactDateTime(task.updatedAt)}</strong></article>
@@ -314,7 +329,7 @@ function renderTabContent(task, activeTab, permissions) {
     case "history":
       return HistoryTimeline(task.history);
     case "system":
-      return renderSystemTab(task);
+      return renderSystemTab(task, permissions);
     case "main":
     default:
       return renderMainTab(task, permissions);
@@ -415,6 +430,23 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
 }
 
 export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
+  const createdTimingSpec = permissions.canManageAssignment
+    ? `
+      <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
+      <div><dt>Ημέρες ανοιχτό</dt><dd>${formatElapsedDays(task.createdAt, task.completedAt)}</dd></div>
+    `
+    : "";
+
+  const assignmentTimingSpec = task.assignedAt
+    ? `
+      <div><dt>Ανάθεση</dt><dd>${formatCompactDateTime(task.assignedAt)}</dd></div>
+      <div><dt>Από ανάθεση</dt><dd>${formatElapsedDays(task.assignedAt, task.completedAt)}</dd></div>
+    `
+    : `
+      <div><dt>Ανάθεση</dt><dd>Δεν έχει ανατεθεί</dd></div>
+      <div><dt>Από ανάθεση</dt><dd>Δεν έχει ανατεθεί</dd></div>
+    `;
+
   const tabs = [
     ["main", "Κύριος"],
     ["photos", "Φωτογραφίες"],
@@ -500,10 +532,8 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
               <div><dt>Πελάτης</dt><dd>${escapeHtml(task.customerName || "-")}</dd></div>
               <div><dt>Team</dt><dd>${escapeHtml(task.resourceTeam)}</dd></div>
               <div><dt>Partner</dt><dd>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</dd></div>
-              <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
-              <div><dt>Ημέρες ανοιχτό</dt><dd>${formatElapsedDays(task.createdAt, task.completedAt)}</dd></div>
-              <div><dt>Ανάθεση</dt><dd>${task.assignedAt ? formatCompactDateTime(task.assignedAt) : "Δεν έχει ανατεθεί"}</dd></div>
-              <div><dt>Από ανάθεση</dt><dd>${task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί"}</dd></div>
+              ${createdTimingSpec}
+              ${assignmentTimingSpec}
               <div><dt>Window</dt><dd>${task.startDate ? formatCompactDateTime(task.startDate) : "Δεν ορίστηκε"}</dd></div>
               <div><dt>API</dt><dd>${escapeHtml(task.flags.apiStatus)}</dd></div>
               <div><dt>Smart readiness</dt><dd>${escapeHtml(task.flags.smartReadiness)}</dd></div>

@@ -476,6 +476,8 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
 }
 
 function renderOpenTasksReport(openTasks) {
+  const showAdminAssignmentTiming = state.currentRole === "admin";
+
   if (!openTasks.length) {
     return `
       <section class="surface report-screen">
@@ -515,9 +517,15 @@ function renderOpenTasksReport(openTasks) {
             <div><strong>BID</strong><span>${escapeHtml(task.bid)}</span></div>
             <div><strong>Team</strong><span>${escapeHtml(task.resourceTeam)}</span></div>
             <div><strong>Ανατέθηκε σε</strong><span>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</span></div>
-            <div><strong>Assigned at</strong><span>${task.assignedAt ? escapeHtml(formatDateTime(task.assignedAt)) : "Δεν έχει ανατεθεί"}</span></div>
             <div><strong>Από δημιουργία</strong><span>${escapeHtml(formatElapsedDays(task.createdAt, task.completedAt))}</span></div>
-            <div><strong>Από ανάθεση</strong><span>${escapeHtml(task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί")}</span></div>
+            ${
+              showAdminAssignmentTiming
+                ? `
+                  <div><strong>Assigned at</strong><span>${task.assignedAt ? escapeHtml(formatDateTime(task.assignedAt)) : "Δεν έχει ανατεθεί"}</span></div>
+                  <div><strong>Από ανάθεση</strong><span>${escapeHtml(task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί")}</span></div>
+                `
+                : ""
+            }
             <div><strong>Έναρξη</strong><span>${escapeHtml(formatDateTime(task.startDate))}</span></div>
             <div><strong>Λήξη</strong><span>${escapeHtml(formatDateTime(task.endDate))}</span></div>
             <div><strong>Created</strong><span>${escapeHtml(task.createdBy)} · ${escapeHtml(formatDateTime(task.createdAt))}</span></div>
