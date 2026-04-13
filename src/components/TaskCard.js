@@ -1,7 +1,7 @@
 import { STATUS_META } from "../data/mockData.js";
 import { escapeHtml, icon } from "../lib/helpers.js";
 
-export function TaskCard(status, count, pipelineKey) {
+export function TaskCard(status, count, pipelineKey, technicianFilter = "") {
   const meta = STATUS_META[status];
   return `
     <button
@@ -9,6 +9,7 @@ export function TaskCard(status, count, pipelineKey) {
       data-route="#/tasks"
       data-filter-status="${escapeHtml(status)}"
       data-filter-pipeline="${escapeHtml(pipelineKey)}"
+      ${technicianFilter ? `data-filter-technician="${escapeHtml(technicianFilter)}"` : ""}
     >
       <span class="status-card__icon">${icon(meta.icon)}</span>
       <span class="status-card__count">${count}</span>

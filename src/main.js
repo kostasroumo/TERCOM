@@ -243,10 +243,91 @@ function getFilteredTasks() {
       state.filters.pipeline === "all" ||
       (historicalCompletedFilter ? true : task.pipeline === state.filters.pipeline);
     const matchesCity = state.filters.city === "all" || task.city === state.filters.city;
-    const matchesTechnician = state.filters.technician === "all" || task.assignedUserId === state.filters.technician;
+    const matchesTechnician =
+      state.filters.technician === "all" ||
+      (state.filters.technician === "unassigned" ? !task.assignedUserId : task.assignedUserId === state.filters.technician);
 
     return matchesSearch && matchesStatus && matchesPipeline && matchesCity && matchesTechnician;
   });
+}
+
+function renderPipelineStatusSections(tasks, technicianFilter = "") {
+  return PIPELINE_ORDER.map((pipelineKey) => {
+    const pipelineTasks = tasks.filter((task) => task.pipeline === pipelineKey);
+    const counts = STATUS_ORDER.map((status) => [status, countTasksForPipelineStatus(tasks, pipelineKey, status)]);
+
+    return `
+      <section class="pipeline-section pipeline-section--nested">
+        <div class="pipeline-section__head">
+          <div>
+            <p class="eyebrow">Pipeline</p>
+            <h2>${escapeHtml(PIPELINE_META[pipelineKey].label)}</h2>
+            <p class="section-copy">${escapeHtml(PIPELINE_META[pipelineKey].hint)}</p>
+          </div>
+          <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${pipelineTasks.length} τρέχουσες</span>
+        </div>
+        <div class="status-grid">
+          ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey, technicianFilter)).join("")}
+        </div>
+      </section>
+    `;
+  }).join("");
+}
+
+function renderAdminDashboard(visibleTasks) {
+  const assigneeSections = [
+    ...TECHNICIANS.map((technician) => ({
+      id: technician.id,
+      label: technician.name,
+      copy: "Επισκόπηση pipelines και queues για τον συγκεκριμένο συνεργάτη.",
+      tasks: visibleTasks.filter((task) => task.assignedUserId === technician.id)
+    })),
+    {
+      id: "unassigned",
+      label: "Χωρίς ανάθεση",
+      copy: "Εργασίες που δεν έχουν δοθεί ακόμη σε συνεργάτη.",
+      tasks: visibleTasks.filter((task) => !task.assignedUserId && task.status !== "cancelled")
+    }
+  ];
+
+  return `
+    <section class="assignee-dashboard">
+      ${assigneeSections
+        .map(
+          (section) => `
+            <section class="surface assignee-section">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Admin View</p>
+                  <h2>${escapeHtml(section.label)}</h2>
+                </div>
+                <p class="section-copy">${escapeHtml(section.copy)}</p>
+              </div>
+
+              ${renderPipelineStatusSections(section.tasks, section.id)}
+            </section>
+          `
+        )
+        .join("")}
+
+      <section class="overview-grid">
+        ${renderAdminQueue(
+          "Αιτήματα Ακύρωσης",
+          "Όλα τα ενεργά αιτήματα ακύρωσης που περιμένουν ενέργεια από admin.",
+          visibleTasks.filter((task) => task.flags.cancellationRequested),
+          "Δεν υπάρχουν ενεργά αιτήματα ακύρωσης.",
+          ""
+        )}
+        ${renderAdminQueue(
+          "Ακυρωμένες Εργασίες",
+          "Εργασίες που ακυρώθηκαν και μπορούν να ανοιχτούν ξανά για νέα ανάθεση.",
+          visibleTasks.filter((task) => task.status === "cancelled"),
+          "Δεν υπάρχουν ακυρωμένες εργασίες.",
+          "cancelled"
+        )}
+      </section>
+    </section>
+  `;
 }
 
 function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
@@ -426,51 +507,13 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
     });
   }
 
+  if (state.currentRole === "admin") {
+    return renderAdminDashboard(visibleTasks);
+  }
+
   return `
     <section class="pipeline-dashboard">
-      ${PIPELINE_ORDER.map((pipelineKey) => {
-        const pipelineTasks = visibleTasks.filter((task) => task.pipeline === pipelineKey);
-        const counts = STATUS_ORDER.map((status) => [status, countTasksForPipelineStatus(visibleTasks, pipelineKey, status)]);
-
-        return `
-          <section class="pipeline-section">
-            <div class="pipeline-section__head">
-              <div>
-                <p class="eyebrow">Pipeline</p>
-                <h2>${escapeHtml(PIPELINE_META[pipelineKey].label)}</h2>
-                <p class="section-copy">${escapeHtml(PIPELINE_META[pipelineKey].hint)}</p>
-              </div>
-              <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${pipelineTasks.length} τρέχουσες</span>
-            </div>
-            <div class="status-grid">
-              ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey)).join("")}
-            </div>
-          </section>
-        `;
-      }).join("")}
-
-      ${
-        state.currentRole === "admin"
-          ? `
-            <section class="overview-grid">
-              ${renderAdminQueue(
-                "Αιτήματα Ακύρωσης",
-                "Όλα τα ενεργά αιτήματα ακύρωσης που περιμένουν ενέργεια από admin.",
-                visibleTasks.filter((task) => task.flags.cancellationRequested),
-                "Δεν υπάρχουν ενεργά αιτήματα ακύρωσης.",
-                ""
-              )}
-              ${renderAdminQueue(
-                "Ακυρωμένες Εργασίες",
-                "Εργασίες που ακυρώθηκαν και μπορούν να ανοιχτούν ξανά για νέα ανάθεση.",
-                visibleTasks.filter((task) => task.status === "cancelled"),
-                "Δεν υπάρχουν ακυρωμένες εργασίες.",
-                "cancelled"
-              )}
-            </section>
-          `
-          : ""
-      }
+      ${renderPipelineStatusSections(visibleTasks)}
     </section>
   `;
 }
@@ -668,13 +711,14 @@ function handleClick(event) {
     const nextRoute = routeTarget.getAttribute("data-route");
     const filterStatus = routeTarget.getAttribute("data-filter-status");
     const filterPipeline = routeTarget.getAttribute("data-filter-pipeline");
-    if (filterStatus) {
-      state.filters.status = filterStatus;
+    const filterTechnician = routeTarget.getAttribute("data-filter-technician");
+    const hasDashboardFilters = routeTarget.hasAttribute("data-filter-status") || routeTarget.hasAttribute("data-filter-pipeline") || routeTarget.hasAttribute("data-filter-technician");
+    if (hasDashboardFilters) {
+      state.filters.status = filterStatus || "all";
+      state.filters.pipeline = filterPipeline || "all";
+      state.filters.technician = filterTechnician || "all";
     }
-    if (filterPipeline) {
-      state.filters.pipeline = filterPipeline;
-    }
-    if (filterStatus || filterPipeline) {
+    if (hasDashboardFilters) {
       saveState();
     }
     if (nextRoute?.startsWith("#/tasks") || nextRoute?.startsWith("#/dashboard")) {

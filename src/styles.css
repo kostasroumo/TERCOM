@@ -389,6 +389,22 @@ svg {
   margin-top: 24px;
 }
 
+.assignee-dashboard {
+  display: grid;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.assignee-section {
+  padding: 22px 22px 24px;
+}
+
+.pipeline-section--nested + .pipeline-section--nested {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(18, 52, 70, 0.08);
+}
+
 .pipeline-section__head {
   display: flex;
   align-items: flex-start;
@@ -1384,6 +1400,11 @@ svg {
 @media (max-width: 1440px) {
   .status-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .overview-grid,
+  .assignee-dashboard {
+    grid-template-columns: 1fr;
   }
 
   .overview-grid {
