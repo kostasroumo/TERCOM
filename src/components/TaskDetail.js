@@ -322,10 +322,23 @@ function renderTabContent(task, activeTab, permissions) {
 }
 
 function renderWorkflowActions(task, permissions, validationComment, cancellationComment) {
+  const submitValidationLabel = task.status === "completed_with_pending" ? "Επανυποβολή για επικύρωση" : "Αποστολή για επικύρωση";
+
   return `
     <div class="detail-side__section">
       <h3>Workflow actions</h3>
       <p class="muted">Ο admin δημιουργεί και αναθέτει. Ο συνεργάτης εκτελεί και παραδίδει για έλεγχο.</p>
+
+      ${
+        task.pipeline === "autopsia" && task.status === "completed_with_pending"
+          ? `
+            <div class="alert-banner alert-banner--warning">
+              <strong>Ολοκλήρωση με εκκρεμότητα</strong>
+              <p>Η αυτοψία έγινε, αλλά λείπει το απαιτούμενο πιστοποιητικό για να προχωρήσει σε επικύρωση.</p>
+            </div>
+          `
+          : ""
+      }
 
       ${
         task.flags.cancellationRequested
@@ -347,7 +360,7 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
 
       ${
         permissions.canSubmitValidation
-          ? `<button class="button" data-workflow-action="submit-validation" data-task-id="${escapeHtml(task.id)}">Αποστολή για επικύρωση</button>`
+          ? `<button class="button" data-workflow-action="submit-validation" data-task-id="${escapeHtml(task.id)}">${submitValidationLabel}</button>`
           : ""
       }
 

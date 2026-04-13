@@ -14,8 +14,10 @@
   --assigned: linear-gradient(140deg, #efb01b 0%, #f6c551 100%);
   --scheduled: linear-gradient(140deg, #a7a7e8 0%, #c3c2ff 100%);
   --in-progress: linear-gradient(140deg, #919da6 0%, #b7c1c8 100%);
+  --completed-with-pending: linear-gradient(140deg, #ef8716 0%, #f5a63b 100%);
   --pending-validation: linear-gradient(140deg, #f0a11d 0%, #ffbc58 100%);
   --completed: linear-gradient(140deg, #22c86f 0%, #4ded91 100%);
+  --cancelled: linear-gradient(140deg, #9aa5ae 0%, #bac3ca 100%);
   --danger: #d55258;
   --shadow-lg: 0 24px 60px rgba(15, 44, 60, 0.14);
   --shadow-md: 0 16px 30px rgba(15, 44, 60, 0.09);
@@ -401,7 +403,7 @@ svg {
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -446,12 +448,20 @@ svg {
   background: var(--in-progress);
 }
 
+.status-card--completed-with-pending {
+  background: var(--completed-with-pending);
+}
+
 .status-card--pending-validation {
   background: var(--pending-validation);
 }
 
 .status-card--completed {
   background: var(--completed);
+}
+
+.status-card--cancelled {
+  background: var(--cancelled);
 }
 
 .status-card__icon {
@@ -781,6 +791,11 @@ svg {
   background: rgba(145, 157, 166, 0.28);
 }
 
+.pill--completed-with-pending {
+  color: #8d4f07;
+  background: rgba(239, 135, 22, 0.22);
+}
+
 .pill--pending-validation {
   color: #81550a;
   background: rgba(240, 161, 29, 0.24);
@@ -789,6 +804,11 @@ svg {
 .pill--completed {
   color: #0f7442;
   background: rgba(34, 200, 111, 0.2);
+}
+
+.pill--cancelled {
+  color: #55636d;
+  background: rgba(154, 165, 174, 0.24);
 }
 
 .pill--pipeline-autopsia {

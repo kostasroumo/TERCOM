@@ -155,7 +155,18 @@ function getVisibleTasks() {
   }
 
   const currentUser = getCurrentUser();
-  return state.tasks.filter((task) => task.assignedUserId === currentUser.id);
+  return state.tasks.filter((task) => task.assignedUserId === currentUser.id && task.status !== "cancelled");
+}
+
+function hasRequiredAutopsiaCertificate(task) {
+  if (task.pipeline !== "autopsia") {
+    return true;
+  }
+
+  return task.files.some((file) => {
+    const name = String(file.name || "").toLowerCase();
+    return ["πιστοποι", "certificate", "certif", "pistopoi"].some((keyword) => name.includes(keyword));
+  });
 }
 
 function hasCompletedPipeline(task, pipelineKey) {
@@ -189,7 +200,8 @@ function getPermissions(task) {
     canEditSafety: isAdmin || isAssignedPartner,
     canScheduleVisit: isAssignedPartner && ["assigned", "scheduled"].includes(task.status),
     canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
-    canSubmitValidation: (isAdmin || isAssignedPartner) && task.status === "in_progress",
+    canSubmitValidation:
+      (isAdmin || isAssignedPartner) && (task.status === "in_progress" || (task.pipeline === "autopsia" && task.status === "completed_with_pending")),
     canApprove: isAdmin && task.status === "pending_validation",
     canReject: isAdmin && task.status === "pending_validation",
     canRequestCancellation: isAssignedPartner && task.status === "in_progress" && !task.flags.cancellationRequested,
@@ -330,7 +342,7 @@ function render() {
 
 function renderView(route, visibleTasks, filteredTasks, currentUser) {
   if (route.view === "report") {
-    return renderOpenTasksReport(visibleTasks.filter((task) => task.status !== "completed"));
+    return renderOpenTasksReport(visibleTasks.filter((task) => !["completed", "cancelled"].includes(task.status)));
   }
 
   if (route.view === "tasks") {
@@ -487,7 +499,7 @@ function renderOpenTasksReport(openTasks) {
 }
 
 function openOpenTasksReport() {
-  const openTasks = getVisibleTasks().filter((task) => task.status !== "completed");
+  const openTasks = getVisibleTasks().filter((task) => !["completed", "cancelled"].includes(task.status));
 
   if (!openTasks.length) {
     window.alert("Δεν υπάρχουν ανοιχτές εργασίες για εξαγωγή.");
@@ -1025,11 +1037,36 @@ function handleWorkflow(taskId, action) {
   }
 
   if (action === "submit-validation") {
+    const task = getTaskById(taskId);
+
+    if (!task) {
+      return;
+    }
+
+    if (task.pipeline === "autopsia" && !hasRequiredAutopsiaCertificate(task)) {
+      commitTaskChange(
+        taskId,
+        (nextTask) => {
+          nextTask.status = "completed_with_pending";
+          nextTask.flags.validationLock = false;
+          nextTask.flags.openIssues = true;
+          if (!nextTask.endDate) {
+            nextTask.endDate = new Date().toISOString().slice(0, 16);
+          }
+        },
+        "Ολοκλήρωση με εκκρεμότητα",
+        "Η αυτοψία ολοκληρώθηκε αλλά λείπει το απαιτούμενο πιστοποιητικό, οπότε η εργασία παραμένει σε εκκρεμότητα."
+      );
+      window.alert("Λείπει το απαιτούμενο πιστοποιητικό. Η εργασία μεταφέρθηκε σε 'Ολοκληρωμένο με εκκρεμότητα'.");
+      return;
+    }
+
     commitTaskChange(
       taskId,
       (task) => {
         task.status = "pending_validation";
         task.flags.validationLock = true;
+        task.flags.openIssues = false;
         if (!task.endDate) {
           task.endDate = new Date().toISOString().slice(0, 16);
         }
@@ -1143,7 +1180,7 @@ function handleWorkflow(taskId, action) {
     commitTaskChange(
       taskId,
       (task) => {
-        task.status = "unassigned";
+        task.status = "cancelled";
         task.assignedUserId = "";
         task.assignedUserName = "";
         task.assignedAt = "";
@@ -1151,14 +1188,14 @@ function handleWorkflow(taskId, action) {
         task.endDate = "";
         task.completedAt = "";
         task.flags.validationLock = false;
-        task.flags.openIssues = true;
+        task.flags.openIssues = false;
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
         task.flags.cancellationReason = "";
       },
       "Έγκριση αιτήματος ακύρωσης",
-      validationComment || "Ο admin ενέκρινε το αίτημα ακύρωσης και η εργασία επέστρεψε σε αναμονή ανάθεσης."
+      validationComment || "Ο admin ενέκρινε το αίτημα ακύρωσης και η εργασία μεταφέρθηκε σε ακυρωμένη."
     );
     state.ui.validationComment = "";
     state.ui.cancellationComment = "";

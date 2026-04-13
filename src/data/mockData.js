@@ -30,6 +30,12 @@ export const STATUS_META = {
     icon: "in_progress",
     hint: "Ο συνεργάτης δουλεύει στο πεδίο"
   },
+  completed_with_pending: {
+    label: "Ολοκληρωμένο με εκκρεμότητα",
+    tone: "completed-with-pending",
+    icon: "files",
+    hint: "Η εργασία έγινε αλλά λείπει υποχρεωτικό δικαιολογητικό"
+  },
   pending_validation: {
     label: "Για επικύρωση",
     tone: "pending-validation",
@@ -41,6 +47,12 @@ export const STATUS_META = {
     tone: "completed",
     icon: "completed",
     hint: "Η εργασία έχει κλείσει επιτυχώς"
+  },
+  cancelled: {
+    label: "Ακυρωμένη",
+    tone: "cancelled",
+    icon: "history",
+    hint: "Η εργασία ακυρώθηκε μετά από έγκριση admin"
   }
 };
 
@@ -48,6 +60,7 @@ export const STATUS_ORDER = [
   "assigned",
   "scheduled",
   "in_progress",
+  "completed_with_pending",
   "pending_validation",
   "completed"
 ];
@@ -57,8 +70,10 @@ export const STATUS_OPTIONS_ORDER = [
   "assigned",
   "scheduled",
   "in_progress",
+  "completed_with_pending",
   "pending_validation",
-  "completed"
+  "completed",
+  "cancelled"
 ];
 
 export const TASK_TYPES = [
@@ -586,6 +601,81 @@ const tasks = [
     ],
     safety: [
       { id: "SAFE-8", item: "Υπόγειος χώρος", status: "warning", note: "Απαιτείται φωτισμός" }
+    ]
+  },
+  {
+    id: "TASK-24037",
+    title: "Αυτοψία με εκκρεμές πιστοποιητικό πρόσβασης",
+    type: "survey",
+    pipeline: "autopsia",
+    status: "completed_with_pending",
+    address: "Αγίου Δημητρίου 88",
+    city: "Βόλος",
+    customerName: "Παναγιώτης Βλάχος",
+    mobilePhone: "6977445566",
+    landlinePhone: "",
+    srId: "SR-88120550",
+    bid: "BID-VOL-2201",
+    projectName: "Volos Readiness Batch",
+    resourceTeam: "Fiber Survey Crew A",
+    assignedAt: "2026-04-10T09:00",
+    completedAt: "",
+    assignedUserId: "partner-1",
+    assignedUserName: "Συνεργάτης 1",
+    startDate: "2026-04-11T10:00",
+    endDate: "2026-04-11T11:30",
+    notes:
+      "Η αυτοψία ολοκληρώθηκε στο πεδίο αλλά δεν έχει ανέβει ακόμη το απαιτούμενο πιστοποιητικό πρόσβασης για να προχωρήσει σε επικύρωση.",
+    createdAt: "2026-04-09T08:40",
+    createdBy: "Admin 1",
+    updatedAt: "2026-04-11T11:35",
+    updatedBy: "Συνεργάτης 1",
+    flags: {
+      apiStatus: "LOCAL-ONLY",
+      validationLock: false,
+      openIssues: true,
+      smartReadiness: "Σε αναμονή δικαιολογητικού",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
+    },
+    photos: [
+      {
+        id: "PHOTO-5",
+        name: "entrance-check.jpg",
+        category: "before",
+        uploadedBy: "Συνεργάτης 1",
+        uploadedAt: "2026-04-11T11:15",
+        preview: placeholderData("Pending certificate", "#f0a11d")
+      }
+    ],
+    files: [
+      {
+        id: "FILE-3",
+        name: "visit-notes.pdf",
+        type: "application/pdf",
+        size: 184320,
+        uploadedBy: "Συνεργάτης 1",
+        uploadedAt: "2026-04-11T11:20"
+      }
+    ],
+    history: [
+      {
+        id: "HIST-9",
+        author: "Συνεργάτης 1",
+        at: "2026-04-11T11:35",
+        summary: "Ολοκλήρωση με εκκρεμότητα",
+        details: "Η αυτοψία ολοκληρώθηκε αλλά λείπει το πιστοποιητικό, οπότε η εργασία παραμένει σε εκκρεμότητα."
+      }
+    ],
+    pipelineHistory: [],
+    materials: [],
+    floors: [
+      { id: "FL-9", level: "Ισόγειο", units: 1, access: "Με συνοδεία", riser: "Κεντρικό shaft" }
+    ],
+    safety: [
+      { id: "SAFE-9", item: "Έλεγχος εισόδου", status: "ok", note: "Αναμένεται μόνο το πιστοποιητικό" }
     ]
   }
 ];
