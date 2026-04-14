@@ -698,6 +698,7 @@ export function createInitialState() {
       activeTab: "main",
       showCreateModal: false,
       sidebarCollapsed: false,
+      expandedAdminAssignee: "partner-1",
       validationComment: "",
       cancellationComment: "",
       exportReturnRoute: "#/dashboard",

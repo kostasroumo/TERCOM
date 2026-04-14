@@ -396,7 +396,65 @@ svg {
 }
 
 .assignee-section {
-  padding: 22px 22px 24px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.assignee-section.is-expanded {
+  box-shadow: var(--shadow-lg);
+}
+
+.assignee-toggle {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border: none;
+  color: inherit;
+  text-align: left;
+  background: linear-gradient(160deg, rgba(20, 50, 69, 0.04), rgba(255, 255, 255, 0.82));
+}
+
+.assignee-toggle__copy h2 {
+  margin: 8px 0 6px;
+  font-family: var(--font-display);
+}
+
+.assignee-toggle__copy .section-copy {
+  max-width: 52ch;
+}
+
+.assignee-toggle__meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 88px;
+}
+
+.assignee-toggle__count {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--primary-dark);
+}
+
+.assignee-toggle__label {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.assignee-toggle__chevron {
+  margin-top: 6px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.assignee-section__body {
+  padding: 0 22px 24px;
 }
 
 .pipeline-section--nested + .pipeline-section--nested {
@@ -1495,7 +1553,8 @@ svg {
   .detail-header__top,
   .detail-header__title,
   .tab-panel__head,
-  .pipeline-section__head {
+  .pipeline-section__head,
+  .assignee-toggle {
     flex-direction: column;
   }
 

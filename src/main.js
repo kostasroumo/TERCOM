@@ -34,6 +34,7 @@ function loadState() {
       activeTab: "main",
       showCreateModal: false,
       sidebarCollapsed: false,
+      expandedAdminAssignee: "partner-1",
       validationComment: "",
       cancellationComment: "",
       exportReturnRoute: "#/dashboard",
@@ -295,16 +296,25 @@ function renderAdminDashboard(visibleTasks) {
       ${assigneeSections
         .map(
           (section) => `
-            <section class="surface assignee-section">
-              <div class="section-head">
-                <div>
+            <section class="surface assignee-section${state.ui.expandedAdminAssignee === section.id ? " is-expanded" : ""}">
+              <button class="assignee-toggle" type="button" data-toggle-admin-assignee="${escapeHtml(section.id)}">
+                <div class="assignee-toggle__copy">
                   <p class="eyebrow">Admin View</p>
                   <h2>${escapeHtml(section.label)}</h2>
+                  <p class="section-copy">${escapeHtml(section.copy)}</p>
                 </div>
-                <p class="section-copy">${escapeHtml(section.copy)}</p>
-              </div>
+                <div class="assignee-toggle__meta">
+                  <span class="assignee-toggle__count">${section.tasks.length}</span>
+                  <span class="assignee-toggle__label">εργασίες</span>
+                  <span class="assignee-toggle__chevron">${state.ui.expandedAdminAssignee === section.id ? "−" : "+"}</span>
+                </div>
+              </button>
 
-              ${renderPipelineStatusSections(section.tasks, section.id)}
+              ${
+                state.ui.expandedAdminAssignee === section.id
+                  ? `<div class="assignee-section__body">${renderPipelineStatusSections(section.tasks, section.id)}</div>`
+                  : ""
+              }
             </section>
           `
         )
@@ -777,6 +787,15 @@ function handleClick(event) {
 
   if (event.target.closest("[data-toggle-sidebar]")) {
     state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed;
+    saveState();
+    render();
+    return;
+  }
+
+  const adminAssigneeToggle = event.target.closest("[data-toggle-admin-assignee]");
+  if (adminAssigneeToggle) {
+    const nextAssignee = adminAssigneeToggle.getAttribute("data-toggle-admin-assignee");
+    state.ui.expandedAdminAssignee = state.ui.expandedAdminAssignee === nextAssignee ? "" : nextAssignee;
     saveState();
     render();
     return;
