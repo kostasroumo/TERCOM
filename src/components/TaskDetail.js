@@ -1,7 +1,78 @@
-import { PIPELINE_META, STATUS_META, STATUS_OPTIONS_ORDER, STATUS_ORDER, TASK_TYPES, TECHNICIANS } from "../data/mockData.js";
+import {
+  getDefaultLeitourgiesInwnStage,
+  getLeitourgiesInwnStageFlow,
+  LEITOURGIES_INWN_STAGE_META,
+  LEITOURGIES_INWN_STAGE_ORDER,
+  OPERATOR_OPTIONS,
+  PIPELINE_META,
+  STATUS_META,
+  STATUS_OPTIONS_ORDER,
+  STATUS_ORDER,
+  TASK_TYPES,
+  TECHNICIANS
+} from "../data/mockData.js";
 import { escapeHtml, formatCompactDateTime, formatDateTime, formatElapsedDays, formatFileSize, icon } from "../lib/helpers.js";
 import { HistoryTimeline } from "./HistoryTimeline.js";
 import { PhotoUploader } from "./PhotoUploader.js";
+
+function getCurrentFiberStageKey(task) {
+  return task.fiberStageKey || getDefaultLeitourgiesInwnStage(task.serviceProvider);
+}
+
+function getCurrentFiberStageMeta(task) {
+  return LEITOURGIES_INWN_STAGE_META[getCurrentFiberStageKey(task)];
+}
+
+function isFiberFinalStage(task) {
+  const flow = getLeitourgiesInwnStageFlow(task.serviceProvider);
+  return flow[flow.length - 1] === getCurrentFiberStageKey(task);
+}
+
+function renderFiberStageStrip(task) {
+  const currentStageKey = getCurrentFiberStageKey(task);
+  const completedStageMap = new Map((task.fiberStageHistory || []).map((entry) => [entry.stage, entry]));
+  const providerLabel = OPERATOR_OPTIONS.find((option) => option.value === task.serviceProvider)?.label || "Άλλος πάροχος";
+  const currentStageMeta = getCurrentFiberStageMeta(task);
+
+  return `
+    <div class="inner-stage-section">
+      <div class="inner-stage-section__head">
+        <div>
+          <p class="eyebrow">Εσωτερική ροή Λειτουργιών Ινών</p>
+          <h3>${escapeHtml(currentStageMeta?.label || "Στάδιο σε αναμονή")}</h3>
+        </div>
+        <div class="inner-stage-section__meta">
+          <span class="pill pill--pipeline-leitourgies-inwn">${escapeHtml(providerLabel)}</span>
+          <span class="pill pill--${isFiberFinalStage(task) ? "pending-validation" : "assigned"}">
+            ${isFiberFinalStage(task) ? "Τελικό στάδιο" : "Ενδιάμεσο στάδιο"}
+          </span>
+        </div>
+      </div>
+
+      <div class="inner-stage-strip">
+        ${LEITOURGIES_INWN_STAGE_ORDER.map((stageKey) => {
+          const meta = LEITOURGIES_INWN_STAGE_META[stageKey];
+          const stageEntry = completedStageMap.get(stageKey);
+          const isSkipped = !!stageEntry?.skipped || (!stageEntry && stageKey === "energopoiisi" && task.serviceProvider !== "cosmote");
+          const state = isSkipped
+            ? "skipped"
+            : stageEntry
+              ? "complete"
+              : stageKey === currentStageKey
+                ? "active"
+                : "pending";
+
+          return `
+            <article class="inner-stage-step inner-stage-step--${state}">
+              <strong>${escapeHtml(meta.label)}</strong>
+              <span>${escapeHtml(isSkipped ? "Δεν απαιτείται" : meta.hint)}</span>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
 
 function renderMainTab(task, permissions) {
   const canEditSchedule = permissions.canManageAssignment || permissions.canScheduleVisit;
@@ -39,6 +110,14 @@ function renderMainTab(task, permissions) {
       <div class="field">
         <span>Πόρος / Team</span>
         <input name="resourceTeam" value="${escapeHtml(task.resourceTeam)}" ${permissions.canEditCore ? "" : "disabled"} />
+      </div>
+      <div class="field">
+        <span>Πάροχος</span>
+        <select name="serviceProvider" ${permissions.canEditCore ? "" : "disabled"}>
+          ${OPERATOR_OPTIONS.map(
+            (option) => `<option value="${option.value}"${task.serviceProvider === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+          ).join("")}
+        </select>
       </div>
       <div class="field">
         <span>Ανατέθηκε σε συνεργάτη</span>
@@ -290,6 +369,25 @@ function renderSystemTab(task, permissions) {
         <article class="system-card"><span>Ημέρες από ανάθεση</span><strong>Δεν έχει ανατεθεί</strong></article>
       `;
 
+  const fiberStageSpec =
+    task.pipeline === "leitourgies_inwn" || task.fiberStageHistory?.length
+      ? `
+          <article class="system-card"><span>Πάροχος</span><strong>${escapeHtml(
+            OPERATOR_OPTIONS.find((option) => option.value === task.serviceProvider)?.label || "Άλλος πάροχος"
+          )}</strong></article>
+          <article class="system-card"><span>Τρέχον στάδιο Λειτουργιών Ινών</span><strong>${escapeHtml(
+            task.pipeline === "leitourgies_inwn" ? getCurrentFiberStageMeta(task)?.label || "-" : "Ολοκληρώθηκε / δεν είναι ενεργό"
+          )}</strong></article>
+          <article class="system-card"><span>Ιστορικό σταδίων</span><strong>${escapeHtml(
+            task.fiberStageHistory?.length
+              ? task.fiberStageHistory
+                  .map((entry) => `${LEITOURGIES_INWN_STAGE_META[entry.stage]?.label || entry.stage}${entry.skipped ? " (skip)" : ""}`)
+                  .join(" | ")
+              : "Δεν υπάρχουν εγγραφές"
+          )}</strong></article>
+        `
+      : "";
+
   return `
     <section class="tab-panel">
       <div class="system-grid">
@@ -298,6 +396,7 @@ function renderSystemTab(task, permissions) {
         <article class="system-card"><span>Task ID</span><strong>${escapeHtml(task.id)}</strong></article>
         ${adminCreatedSpec}
         ${assignmentSpec}
+        ${fiberStageSpec}
         <article class="system-card"><span>Completed at</span><strong>${task.completedAt ? formatCompactDateTime(task.completedAt) : "Δεν έχει ολοκληρωθεί"}</strong></article>
         <article class="system-card"><span>Created by</span><strong>${escapeHtml(task.createdBy)}</strong></article>
         <article class="system-card"><span>Updated at</span><strong>${formatCompactDateTime(task.updatedAt)}</strong></article>
@@ -337,12 +436,24 @@ function renderTabContent(task, activeTab, permissions) {
 }
 
 function renderWorkflowActions(task, permissions, validationComment, cancellationComment) {
-  const submitValidationLabel = task.status === "completed_with_pending" ? "Επανυποβολή για επικύρωση" : "Αποστολή για επικύρωση";
+  let submitValidationLabel = task.status === "completed_with_pending" ? "Επανυποβολή για επικύρωση" : "Αποστολή για επικύρωση";
+
+  if (task.pipeline === "leitourgies_inwn") {
+    const fiberStageMeta = getCurrentFiberStageMeta(task);
+    submitValidationLabel = isFiberFinalStage(task)
+      ? "Αποστολή τελικού σταδίου για επικύρωση"
+      : `Ολοκλήρωση σταδίου ${fiberStageMeta?.label || ""}`;
+  }
+
+  const workflowCopy =
+    task.pipeline === "leitourgies_inwn"
+      ? "Στα ενδιάμεσα στάδια των Λειτουργιών Ινών το task περνά κατευθείαν στο επόμενο στάδιο. Μόνο η τελική επιμέτρηση πηγαίνει για επικύρωση."
+      : "Ο admin δημιουργεί και αναθέτει. Ο συνεργάτης εκτελεί και παραδίδει για έλεγχο.";
 
   return `
     <div class="detail-side__section">
       <h3>Workflow actions</h3>
-      <p class="muted">Ο admin δημιουργεί και αναθέτει. Ο συνεργάτης εκτελεί και παραδίδει για έλεγχο.</p>
+      <p class="muted">${escapeHtml(workflowCopy)}</p>
 
       ${
         task.pipeline === "autopsia" && task.status === "completed_with_pending"
@@ -447,6 +558,9 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
       <div><dt>Από ανάθεση</dt><dd>Δεν έχει ανατεθεί</dd></div>
     `;
 
+  const currentFiberStageMeta = task.pipeline === "leitourgies_inwn" ? getCurrentFiberStageMeta(task) : null;
+  const providerLabel = OPERATOR_OPTIONS.find((option) => option.value === task.serviceProvider)?.label || "Άλλος πάροχος";
+
   const tabs = [
     ["main", "Κύριος"],
     ["photos", "Φωτογραφίες"],
@@ -473,7 +587,7 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
           <div>
             <p class="eyebrow">Task Workspace</p>
             <h1>${escapeHtml(task.title)}</h1>
-            <p>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(task.srId)} · Pipeline: ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</p>
+            <p>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(task.srId)} · Pipeline: ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}${currentFiberStageMeta ? ` · Στάδιο: ${escapeHtml(currentFiberStageMeta.label)}` : ""}</p>
           </div>
           <div class="detail-summary">
             <article><span>Ρόλος</span><strong>${escapeHtml(currentRoleLabel)}</strong></article>
@@ -489,6 +603,8 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
           </div>
           <p>${escapeHtml(PIPELINE_META[task.pipeline]?.hint || "")}</p>
         </div>
+
+        ${task.pipeline === "leitourgies_inwn" ? renderFiberStageStrip(task) : ""}
 
         <div class="workflow-strip">
           ${STATUS_ORDER.map((status, index) => {
@@ -529,6 +645,12 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
               <div><dt>Project</dt><dd>${escapeHtml(task.projectName)}</dd></div>
               <div><dt>SR ID</dt><dd>${escapeHtml(task.srId)}</dd></div>
               <div><dt>BID</dt><dd>${escapeHtml(task.bid)}</dd></div>
+              <div><dt>Πάροχος</dt><dd>${escapeHtml(providerLabel)}</dd></div>
+              ${
+                currentFiberStageMeta
+                  ? `<div><dt>Στάδιο</dt><dd>${escapeHtml(currentFiberStageMeta.label)}</dd></div>`
+                  : ""
+              }
               <div><dt>Πελάτης</dt><dd>${escapeHtml(task.customerName || "-")}</dd></div>
               <div><dt>Team</dt><dd>${escapeHtml(task.resourceTeam)}</dd></div>
               <div><dt>Partner</dt><dd>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</dd></div>

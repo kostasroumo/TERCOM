@@ -1,10 +1,23 @@
 import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
-import { createInitialState, PIPELINE_META, PIPELINE_ORDER, ROLE_LABELS, STATUS_META, STATUS_ORDER, TECHNICIANS, USER_DIRECTORY } from "./data/mockData.js";
+import {
+  createInitialState,
+  getDefaultLeitourgiesInwnStage,
+  getLeitourgiesInwnStageFlow,
+  LEITOURGIES_INWN_STAGE_META,
+  OPERATOR_OPTIONS,
+  PIPELINE_META,
+  PIPELINE_ORDER,
+  ROLE_LABELS,
+  STATUS_META,
+  STATUS_ORDER,
+  TECHNICIANS,
+  USER_DIRECTORY
+} from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v6";
+const STORAGE_KEY = "birol-field-ops-prototype-v7";
 const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
 const app = document.querySelector("#app");
 
@@ -98,9 +111,13 @@ function getTaskById(taskId) {
 }
 
 function normalizeTask(task) {
+  const serviceProvider = task.serviceProvider || "other";
+  const isLeitourgiesTask = (task.pipeline || "autopsia") === "leitourgies_inwn";
+
   return {
     ...task,
     pipeline: task.pipeline || "autopsia",
+    serviceProvider,
     customerName: task.customerName || "",
     mobilePhone: task.mobilePhone || "",
     landlinePhone: task.landlinePhone || "",
@@ -120,7 +137,9 @@ function normalizeTask(task) {
     },
     assignedUserId: task.assignedUserId || "",
     assignedUserName: task.assignedUserName || "",
-    pipelineHistory: Array.isArray(task.pipelineHistory) ? task.pipelineHistory : []
+    pipelineHistory: Array.isArray(task.pipelineHistory) ? task.pipelineHistory : [],
+    fiberStageKey: isLeitourgiesTask ? task.fiberStageKey || getDefaultLeitourgiesInwnStage(serviceProvider) : task.fiberStageKey || "",
+    fiberStageHistory: Array.isArray(task.fiberStageHistory) ? task.fiberStageHistory : []
   };
 }
 
@@ -170,6 +189,34 @@ function hasRequiredAutopsiaCertificate(task) {
   });
 }
 
+function getLeitourgiesStageFlow(task) {
+  return getLeitourgiesInwnStageFlow(task.serviceProvider);
+}
+
+function getCurrentLeitourgiesStageKey(task) {
+  return task.fiberStageKey || getDefaultLeitourgiesInwnStage(task.serviceProvider);
+}
+
+function getCurrentLeitourgiesStageMeta(task) {
+  const stageKey = getCurrentLeitourgiesStageKey(task);
+  return LEITOURGIES_INWN_STAGE_META[stageKey];
+}
+
+function getNextLeitourgiesStageKey(task) {
+  const flow = getLeitourgiesStageFlow(task);
+  const currentIndex = flow.indexOf(getCurrentLeitourgiesStageKey(task));
+  return currentIndex >= 0 ? flow[currentIndex + 1] || "" : "";
+}
+
+function isLeitourgiesFinalStage(task) {
+  const flow = getLeitourgiesStageFlow(task);
+  return flow[flow.length - 1] === getCurrentLeitourgiesStageKey(task);
+}
+
+function hasFiberStageEntry(task, stageKey) {
+  return (task.fiberStageHistory || []).some((entry) => entry.stage === stageKey);
+}
+
 function hasCompletedPipeline(task, pipelineKey) {
   return (
     (task.pipeline === pipelineKey && task.status === "completed") ||
@@ -202,7 +249,8 @@ function getPermissions(task) {
     canScheduleVisit: isAssignedPartner && ["assigned", "scheduled"].includes(task.status),
     canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
     canSubmitValidation:
-      (isAdmin || isAssignedPartner) && (task.status === "in_progress" || (task.pipeline === "autopsia" && task.status === "completed_with_pending")),
+      (isAdmin || isAssignedPartner) &&
+      (task.status === "in_progress" || (task.pipeline === "autopsia" && task.status === "completed_with_pending")),
     canApprove: isAdmin && task.status === "pending_validation",
     canReject: isAdmin && task.status === "pending_validation",
     canRequestCancellation: isAssignedPartner && task.status === "in_progress" && !task.flags.cancellationRequested,
@@ -529,7 +577,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
 }
 
 function renderOpenTasksReport(openTasks) {
-  const showAdminAssignmentTiming = state.currentRole === "admin";
+  const showAdminCreationTiming = state.currentRole === "admin";
 
   if (!openTasks.length) {
     return `
@@ -548,6 +596,8 @@ function renderOpenTasksReport(openTasks) {
   const renderedTasks = openTasks
     .map((task) => {
       const statusLabel = STATUS_META[task.status]?.label || task.status;
+      const fiberStageLabel = task.pipeline === "leitourgies_inwn" ? LEITOURGIES_INWN_STAGE_META[getCurrentLeitourgiesStageKey(task)]?.label || "-" : "-";
+      const providerLabel = OPERATOR_OPTIONS.find((option) => option.value === task.serviceProvider)?.label || "Άλλος πάροχος";
 
       return `
         <article class="report-card">
@@ -568,20 +618,22 @@ function renderOpenTasksReport(openTasks) {
             <div><strong>Project</strong><span>${escapeHtml(task.projectName)}</span></div>
             <div><strong>SR ID</strong><span>${escapeHtml(task.srId)}</span></div>
             <div><strong>BID</strong><span>${escapeHtml(task.bid)}</span></div>
+            <div><strong>Πάροχος</strong><span>${escapeHtml(providerLabel)}</span></div>
+            <div><strong>Τρέχον στάδιο</strong><span>${escapeHtml(fiberStageLabel)}</span></div>
             <div><strong>Team</strong><span>${escapeHtml(task.resourceTeam)}</span></div>
             <div><strong>Ανατέθηκε σε</strong><span>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</span></div>
-            <div><strong>Από δημιουργία</strong><span>${escapeHtml(formatElapsedDays(task.createdAt, task.completedAt))}</span></div>
+            <div><strong>Assigned at</strong><span>${task.assignedAt ? escapeHtml(formatDateTime(task.assignedAt)) : "Δεν έχει ανατεθεί"}</span></div>
+            <div><strong>Από ανάθεση</strong><span>${escapeHtml(task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί")}</span></div>
             ${
-              showAdminAssignmentTiming
+              showAdminCreationTiming
                 ? `
-                  <div><strong>Assigned at</strong><span>${task.assignedAt ? escapeHtml(formatDateTime(task.assignedAt)) : "Δεν έχει ανατεθεί"}</span></div>
-                  <div><strong>Από ανάθεση</strong><span>${escapeHtml(task.assignedAt ? formatElapsedDays(task.assignedAt, task.completedAt) : "Δεν έχει ανατεθεί")}</span></div>
+                  <div><strong>Από δημιουργία</strong><span>${escapeHtml(formatElapsedDays(task.createdAt, task.completedAt))}</span></div>
+                  <div><strong>Created</strong><span>${escapeHtml(task.createdBy)} · ${escapeHtml(formatDateTime(task.createdAt))}</span></div>
                 `
                 : ""
             }
             <div><strong>Έναρξη</strong><span>${escapeHtml(formatDateTime(task.startDate))}</span></div>
             <div><strong>Λήξη</strong><span>${escapeHtml(formatDateTime(task.endDate))}</span></div>
-            <div><strong>Created</strong><span>${escapeHtml(task.createdBy)} · ${escapeHtml(formatDateTime(task.createdAt))}</span></div>
             <div><strong>Updated</strong><span>${escapeHtml(task.updatedBy)} · ${escapeHtml(formatDateTime(task.updatedAt))}</span></div>
           </div>
           <div class="report-notes">
@@ -676,6 +728,14 @@ function renderCreateModal() {
           <div class="field">
             <span>Team</span>
             <input name="resourceTeam" placeholder="π.χ. Fiber Survey Crew A" required />
+          </div>
+          <div class="field">
+            <span>Πάροχος</span>
+            <select name="serviceProvider">
+              ${OPERATOR_OPTIONS.map(
+                (option) => `<option value="${option.value}"${option.value === "other" ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+              ).join("")}
+            </select>
           </div>
           <div class="field">
             <span>Προγραμματισμός</span>
@@ -950,6 +1010,7 @@ function createTaskFromForm(formData) {
     type: formData.get("type"),
     pipeline: "autopsia",
     status: "unassigned",
+    serviceProvider: formData.get("serviceProvider") || "other",
     address: formData.get("address"),
     city: formData.get("city"),
     customerName: formData.get("customerName"),
@@ -992,6 +1053,8 @@ function createTaskFromForm(formData) {
       }
     ],
     pipelineHistory: [],
+    fiberStageKey: "",
+    fiberStageHistory: [],
     materials: [],
     floors: [{ id: createId("FL"), level: "Ισόγειο", units: 1, access: "Ελεύθερη", riser: "Κύριος" }],
     safety: [{ id: createId("SAFE"), item: "Γενικός έλεγχος πρόσβασης", status: "needs-review", note: "Νέα εγγραφή" }]
@@ -1027,6 +1090,16 @@ function updateTaskCore(taskId, formData) {
 
       if (nextValues.projectName !== undefined) {
         task.projectName = nextValues.projectName;
+      }
+
+      if (nextValues.serviceProvider !== undefined) {
+        task.serviceProvider = nextValues.serviceProvider || "other";
+        if (task.pipeline === "leitourgies_inwn") {
+          const availableStages = getLeitourgiesInwnStageFlow(task.serviceProvider);
+          if (!availableStages.includes(task.fiberStageKey)) {
+            task.fiberStageKey = availableStages[availableStages.length - 1] || getDefaultLeitourgiesInwnStage(task.serviceProvider);
+          }
+        }
       }
 
       if (nextValues.srId !== undefined) {
@@ -1192,6 +1265,54 @@ function handleWorkflow(taskId, action) {
       return;
     }
 
+    if (task.pipeline === "leitourgies_inwn" && !isLeitourgiesFinalStage(task)) {
+      const currentStageKey = getCurrentLeitourgiesStageKey(task);
+      const currentStageMeta = LEITOURGIES_INWN_STAGE_META[currentStageKey];
+      const nextStageKey = getNextLeitourgiesStageKey(task);
+      const nextStageMeta = LEITOURGIES_INWN_STAGE_META[nextStageKey];
+
+      commitTaskChange(
+        taskId,
+        (nextTask) => {
+          const completedAt = new Date().toISOString();
+          const stageSummary = {
+            id: createId("FIB"),
+            stage: currentStageKey,
+            completedAt,
+            completedBy: getCurrentUser().name,
+            skipped: false
+          };
+
+          nextTask.fiberStageHistory.unshift(stageSummary);
+          nextTask.fiberStageKey = nextStageKey;
+          nextTask.status = nextTask.assignedUserId ? "assigned" : "unassigned";
+          nextTask.startDate = "";
+          nextTask.endDate = "";
+          nextTask.flags.validationLock = false;
+          nextTask.flags.openIssues = false;
+
+          if (task.serviceProvider !== "cosmote" && !hasFiberStageEntry(nextTask, "energopoiisi")) {
+            const currentFlow = getLeitourgiesInwnStageFlow(task.serviceProvider);
+            const currentIndex = currentFlow.indexOf(nextStageKey);
+            if (currentIndex >= 0 && currentIndex > currentFlow.indexOf("entos_ktiriou")) {
+              nextTask.fiberStageHistory.unshift({
+                id: createId("FIB"),
+                stage: "energopoiisi",
+                completedAt,
+                completedBy: getCurrentUser().name,
+                skipped: true
+              });
+            }
+          }
+        },
+        `Ολοκλήρωση σταδίου ${currentStageMeta.label}`,
+        nextStageMeta
+          ? `Το στάδιο ${currentStageMeta.label} ολοκληρώθηκε και άνοιξε αυτόματα το επόμενο στάδιο ${nextStageMeta.label}.`
+          : `Το στάδιο ${currentStageMeta.label} ολοκληρώθηκε.`
+      );
+      return;
+    }
+
     commitTaskChange(
       taskId,
       (task) => {
@@ -1257,6 +1378,21 @@ function handleWorkflow(taskId, action) {
         (nextTask) => {
           const approvedAt = new Date().toISOString();
           const hasAssignedPartner = !!nextTask.assignedUserId;
+          const leavingLeitourgiesInwn = nextTask.pipeline === "leitourgies_inwn";
+
+          if (leavingLeitourgiesInwn) {
+            const currentStageKey = getCurrentLeitourgiesStageKey(nextTask);
+            if (currentStageKey && !hasFiberStageEntry(nextTask, currentStageKey)) {
+              nextTask.fiberStageHistory.unshift({
+                id: createId("FIB"),
+                stage: currentStageKey,
+                completedAt: approvedAt,
+                completedBy: getCurrentUser().name,
+                skipped: false
+              });
+            }
+          }
+
           nextTask.pipelineHistory.unshift({
             id: createId("PIPE"),
             pipeline: nextTask.pipeline,
@@ -1269,6 +1405,12 @@ function handleWorkflow(taskId, action) {
           nextTask.startDate = "";
           nextTask.endDate = "";
           nextTask.completedAt = "";
+          if (nextPipeline === "leitourgies_inwn") {
+            nextTask.fiberStageKey = getDefaultLeitourgiesInwnStage(nextTask.serviceProvider);
+            nextTask.fiberStageHistory = [];
+          } else if (leavingLeitourgiesInwn) {
+            nextTask.fiberStageKey = "";
+          }
           nextTask.flags.validationLock = false;
           nextTask.flags.openIssues = false;
           nextTask.flags.cancellationRequested = false;

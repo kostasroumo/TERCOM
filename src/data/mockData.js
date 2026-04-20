@@ -82,6 +82,11 @@ export const TASK_TYPES = [
   { value: "repair", label: "Επισκευή" }
 ];
 
+export const OPERATOR_OPTIONS = [
+  { value: "cosmote", label: "COSMOTE" },
+  { value: "other", label: "Άλλος πάροχος" }
+];
+
 export const PIPELINE_META = {
   autopsia: {
     label: "Αυτοψία",
@@ -104,6 +109,54 @@ export const PIPELINE_META = {
 };
 
 export const PIPELINE_ORDER = ["autopsia", "leitourgies_inwn", "syntirisi_loipes"];
+
+export const LEITOURGIES_INWN_STAGE_META = {
+  xwmatourgiko: {
+    label: "Χωματουργικό",
+    hint: "Άνοιγμα και προετοιμασία της όδευσης για την επόμενη φάση.",
+    requiresValidation: false
+  },
+  emfyteysh: {
+    label: "Εμφύτευση",
+    hint: "Τοποθέτηση και σταθεροποίηση στοιχείων πεδίου.",
+    requiresValidation: false
+  },
+  entos_ktiriou: {
+    label: "Κατασκευή εντός κτηρίου",
+    hint: "Εσωτερικές εργασίες δικτύου και πρόσβασης στο κτήριο.",
+    requiresValidation: false
+  },
+  energopoiisi: {
+    label: "Ενεργοποίηση",
+    hint: "Εκτελείται μόνο όταν ο πάροχος της εργασίας είναι COSMOTE.",
+    requiresValidation: false,
+    cosmoteOnly: true
+  },
+  epimetrisi_email: {
+    label: "Επιμέτρηση με email",
+    hint: "Τελική καταγραφή, αποστολή επιμέτρησης και παράδοση για επικύρωση.",
+    requiresValidation: true
+  }
+};
+
+export const LEITOURGIES_INWN_STAGE_ORDER = [
+  "xwmatourgiko",
+  "emfyteysh",
+  "entos_ktiriou",
+  "energopoiisi",
+  "epimetrisi_email"
+];
+
+export function getLeitourgiesInwnStageFlow(serviceProvider = "other") {
+  const normalizedProvider = String(serviceProvider || "other").toLowerCase();
+  return normalizedProvider === "cosmote"
+    ? [...LEITOURGIES_INWN_STAGE_ORDER]
+    : LEITOURGIES_INWN_STAGE_ORDER.filter((stageKey) => stageKey !== "energopoiisi");
+}
+
+export function getDefaultLeitourgiesInwnStage(serviceProvider = "other") {
+  return getLeitourgiesInwnStageFlow(serviceProvider)[0] || LEITOURGIES_INWN_STAGE_ORDER[0];
+}
 
 export const PHOTO_CATEGORIES = [
   { value: "before", label: "Πριν" },
@@ -449,6 +502,99 @@ const tasks = [
     ],
     safety: [
       { id: "SAFE-6", item: "Πρόσβαση σε shaft", status: "ok", note: "Χωρίς εμπόδια" }
+    ]
+  },
+  {
+    id: "TASK-24034A",
+    title: "Λειτουργίες ινών για οδεύσεις κοινόχρηστου χώρου",
+    type: "installation",
+    pipeline: "leitourgies_inwn",
+    status: "in_progress",
+    serviceProvider: "cosmote",
+    fiberStageKey: "emfyteysh",
+    fiberStageHistory: [
+      {
+        id: "FIB-1",
+        stage: "xwmatourgiko",
+        completedAt: "2026-04-02T13:15",
+        completedBy: "Συνεργάτης 2",
+        skipped: false
+      }
+    ],
+    address: "Αρκαδίου 17",
+    city: "Πειραιάς",
+    customerName: "Γιώργος Μανωλάκης",
+    mobilePhone: "6944007788",
+    landlinePhone: "2104433221",
+    srId: "SR-91884520",
+    bid: "BID-PIR-4408",
+    projectName: "Piraeus Fiber Buildout",
+    resourceTeam: "Civil Access Unit",
+    assignedAt: "2026-04-01T09:05",
+    completedAt: "",
+    assignedUserId: "partner-2",
+    assignedUserName: "Συνεργάτης 2",
+    startDate: "2026-04-03T08:00",
+    endDate: "",
+    notes:
+      "Η αυτοψία έχει ήδη εγκριθεί και η εργασία βρίσκεται στη 2η εσωτερική φάση των Λειτουργιών Ινών.",
+    createdAt: "2026-03-29T10:20",
+    createdBy: "Admin 1",
+    updatedAt: "2026-04-03T08:20",
+    updatedBy: "Συνεργάτης 2",
+    flags: {
+      apiStatus: "SYNCED",
+      validationLock: false,
+      openIssues: false,
+      smartReadiness: "ΝΑΙ",
+      cancellationRequested: false,
+      cancellationRequestedAt: "",
+      cancellationRequestedBy: "",
+      cancellationReason: ""
+    },
+    photos: [
+      {
+        id: "PHOTO-34A",
+        name: "emfytefsi-phase.jpg",
+        category: "equipment",
+        uploadedBy: "Συνεργάτης 2",
+        uploadedAt: "2026-04-03T08:18",
+        preview: placeholderData("Fiber stage", "#279db7")
+      }
+    ],
+    files: [],
+    history: [
+      {
+        id: "HIST-34A-2",
+        author: "Admin 1",
+        at: "2026-04-02T13:20",
+        summary: "Μετάβαση στο pipeline Λειτουργίες Ινών",
+        details: "Η φάση Αυτοψία εγκρίθηκε και το task άνοιξε στο στάδιο Χωματουργικό."
+      },
+      {
+        id: "HIST-34A-1",
+        author: "Συνεργάτης 2",
+        at: "2026-04-03T08:20",
+        summary: "Ολοκλήρωση σταδίου Χωματουργικό",
+        details: "Το στάδιο Χωματουργικό ολοκληρώθηκε και άνοιξε αυτόματα η Εμφύτευση."
+      }
+    ],
+    pipelineHistory: [
+      {
+        id: "PIPE-34A-1",
+        pipeline: "autopsia",
+        completedAt: "2026-04-02T13:20",
+        approvedBy: "Admin 1"
+      }
+    ],
+    materials: [
+      { id: "MAT-34A-1", code: "MICRO-12", description: "Microduct 12mm", quantity: 18, unit: "μ." }
+    ],
+    floors: [
+      { id: "FL-34A", level: "Ισόγειο", units: 2, access: "Ελεύθερη", riser: "Ανατολική όδευση" }
+    ],
+    safety: [
+      { id: "SAFE-34A", item: "Εργασία εξωτερικού χώρου", status: "ok", note: "Κανονικές συνθήκες πεδίου" }
     ]
   },
   {

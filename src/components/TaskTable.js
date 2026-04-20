@@ -1,4 +1,4 @@
-import { PIPELINE_META, STATUS_META } from "../data/mockData.js";
+import { getDefaultLeitourgiesInwnStage, LEITOURGIES_INWN_STAGE_META, PIPELINE_META, STATUS_META } from "../data/mockData.js";
 import { escapeHtml, formatDate } from "../lib/helpers.js";
 
 export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
@@ -78,6 +78,10 @@ export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
             ${tasks
               .map((task) => {
                 const meta = STATUS_META[task.status];
+                const fiberStageLabel =
+                  task.pipeline === "leitourgies_inwn"
+                    ? LEITOURGIES_INWN_STAGE_META[task.fiberStageKey || getDefaultLeitourgiesInwnStage(task.serviceProvider)]?.label || "-"
+                    : "";
                 return `
                   <tr class="task-row" data-open-task="${escapeHtml(task.id)}">
                     <td>
@@ -85,7 +89,14 @@ export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
                       <div class="table-secondary">${escapeHtml(task.projectName)} · ${escapeHtml(task.customerName || "-")}</div>
                     </td>
                     <td>${escapeHtml(task.city)}</td>
-                    <td><span class="pill pill--${escapeHtml(PIPELINE_META[task.pipeline]?.tone || "pipeline-autopsia")}">${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span></td>
+                    <td>
+                      <div class="table-primary">
+                        <span class="pill pill--${escapeHtml(PIPELINE_META[task.pipeline]?.tone || "pipeline-autopsia")}">${escapeHtml(
+                          PIPELINE_META[task.pipeline]?.label || "Αυτοψία"
+                        )}</span>
+                      </div>
+                      <div class="table-secondary">${escapeHtml(fiberStageLabel || "—")}</div>
+                    </td>
                     <td>
                       <div class="table-primary">${escapeHtml(task.srId)}</div>
                       <div class="table-secondary">${escapeHtml(task.bid)}</div>
