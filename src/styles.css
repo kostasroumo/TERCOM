@@ -1139,6 +1139,60 @@ svg {
   margin-top: 6px;
 }
 
+.inventory-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.inventory-stat {
+  padding: 18px 20px;
+  border: 1px solid rgba(18, 52, 70, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.inventory-stat span,
+.inventory-stat strong {
+  display: block;
+}
+
+.inventory-stat span {
+  color: var(--text-soft);
+}
+
+.inventory-stat strong {
+  margin-top: 8px;
+  font-size: 1.55rem;
+}
+
+.inventory-stock-form {
+  display: grid;
+  grid-template-columns: minmax(72px, 88px) minmax(72px, 88px) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.inventory-inline-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(20, 50, 69, 0.05);
+  color: var(--text-soft);
+}
+
+.inventory-inline-note strong {
+  color: var(--text-base);
+}
+
+.inventory-row--warning td {
+  background: rgba(240, 161, 29, 0.08);
+}
+
 .detail-side {
   align-self: start;
   padding: 22px;

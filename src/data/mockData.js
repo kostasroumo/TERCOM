@@ -1,4 +1,5 @@
 import { deepClone } from "../lib/helpers.js";
+import { MATERIAL_CATALOG_SEED } from "./materialCatalog.js";
 
 export const ROLE_LABELS = {
   admin: "Admin",
@@ -848,8 +849,10 @@ export function createInitialState() {
       validationComment: "",
       cancellationComment: "",
       exportReturnRoute: "#/dashboard",
-      reportAutoPrint: false
+      reportAutoPrint: false,
+      inventorySearch: ""
     },
-    tasks: deepClone(tasks)
+    tasks: deepClone(tasks),
+    inventory: deepClone(MATERIAL_CATALOG_SEED)
   };
 }

@@ -217,13 +217,15 @@ function renderFilesTab(task, permissions) {
   `;
 }
 
-function renderMaterialsTab(task, permissions) {
+function renderMaterialsTab(task, permissions, inventory) {
+  const inventoryOptions = inventory || [];
+
   return `
     <section class="tab-panel">
       <div class="tab-panel__head">
         <div>
           <h3>Υλικά</h3>
-          <p>Καταγραφή υλικών που χρησιμοποιήθηκαν στην εργασία πεδίου.</p>
+          <p>Καταγραφή υλικών που χρησιμοποιήθηκαν στην εργασία πεδίου με έλεγχο διαθέσιμου stock.</p>
         </div>
       </div>
 
@@ -231,15 +233,29 @@ function renderMaterialsTab(task, permissions) {
         permissions.canAddMaterials
           ? `
             <form class="inline-form" data-material-form="${escapeHtml(task.id)}">
-              <input name="code" placeholder="Κωδικός" required />
-              <input name="description" placeholder="Περιγραφή υλικού" required />
+              <select name="catalogId" required>
+                <option value="">Επιλογή υλικού από το απόθεμα</option>
+                ${inventoryOptions
+                  .map(
+                    (item) => `
+                      <option value="${escapeHtml(item.id)}">
+                        ${escapeHtml(item.code)} · ${escapeHtml(item.description)} · ${escapeHtml(item.available)} ${escapeHtml(item.unit)} διαθέσιμα
+                      </option>
+                    `
+                  )
+                  .join("")}
+              </select>
               <input type="number" min="1" step="1" name="quantity" placeholder="Ποσότητα" required />
-              <input name="unit" placeholder="Μονάδα" value="τεμ." required />
               <button class="button button--secondary" type="submit">Προσθήκη</button>
             </form>
           `
           : ""
       }
+
+      <div class="inventory-inline-note">
+        <strong>Stock source</strong>
+        <span>Το catalog έρχεται από το πρώτο sheet &quot;ΥΛΙΚΑ&quot; του Excel. Οι διαθέσιμες ποσότητες ενημερώνονται από την οθόνη &quot;Απόθεμα&quot;.</span>
+      </div>
 
       <div class="table-wrap table-wrap--dense">
         <table class="data-table">
@@ -249,6 +265,7 @@ function renderMaterialsTab(task, permissions) {
               <th>Περιγραφή</th>
               <th>Ποσότητα</th>
               <th>Μονάδα</th>
+              <th>Πηγή</th>
             </tr>
           </thead>
           <tbody>
@@ -262,11 +279,12 @@ function renderMaterialsTab(task, permissions) {
                           <td>${escapeHtml(material.description)}</td>
                           <td>${escapeHtml(material.quantity)}</td>
                           <td>${escapeHtml(material.unit)}</td>
+                          <td>${material.catalogId ? "Απόθεμα" : "Χειροκίνητη / legacy εγγραφή"}</td>
                         </tr>
                       `
                     )
                     .join("")
-                : `<tr><td colspan="4">Δεν έχουν δηλωθεί υλικά.</td></tr>`
+                : `<tr><td colspan="5">Δεν έχουν δηλωθεί υλικά.</td></tr>`
             }
           </tbody>
         </table>
@@ -413,14 +431,14 @@ function renderSystemTab(task, permissions) {
   `;
 }
 
-function renderTabContent(task, activeTab, permissions) {
+function renderTabContent(task, activeTab, permissions, inventory) {
   switch (activeTab) {
     case "photos":
       return PhotoUploader(task, permissions);
     case "files":
       return renderFilesTab(task, permissions);
     case "materials":
-      return renderMaterialsTab(task, permissions);
+      return renderMaterialsTab(task, permissions, inventory);
     case "floors":
       return renderFloorsTab(task);
     case "safety":
@@ -540,7 +558,7 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
   `;
 }
 
-export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
+export function TaskDetail({ task, activeTab, permissions, inventory, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
   const createdTimingSpec = permissions.canManageAssignment
     ? `
       <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
@@ -634,7 +652,7 @@ export function TaskDetail({ task, activeTab, permissions, currentRoleLabel, cur
               .join("")}
           </div>
 
-          ${renderTabContent(task, activeTab, permissions)}
+          ${renderTabContent(task, activeTab, permissions, inventory)}
         </div>
 
         <aside class="detail-side surface">
