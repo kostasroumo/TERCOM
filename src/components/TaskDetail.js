@@ -217,8 +217,11 @@ function renderFilesTab(task, permissions) {
   `;
 }
 
-function renderMaterialsTab(task, permissions, inventory, materialSearch) {
+function renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId) {
   const inventoryOptions = inventory || [];
+  const selectedMaterial = inventoryOptions.find((item) => item.id === selectedMaterialId) || null;
+  const hasSearch = Boolean((materialSearch || "").trim());
+  const resultItems = inventoryOptions.slice(0, 12);
 
   return `
     <section class="tab-panel">
@@ -241,26 +244,66 @@ function renderMaterialsTab(task, permissions, inventory, materialSearch) {
         </label>
       </div>
 
+      <div class="material-picker">
+        ${
+          selectedMaterial
+            ? `
+              <article class="material-selected-card">
+                <div>
+                  <p class="eyebrow">Επιλεγμένο υλικό</p>
+                  <strong>${escapeHtml(selectedMaterial.code)} · ${escapeHtml(selectedMaterial.description)}</strong>
+                  <span>${escapeHtml(selectedMaterial.unit)}</span>
+                </div>
+              </article>
+            `
+            : `
+              <div class="material-picker__results">
+                ${
+                  resultItems.length
+                    ? resultItems
+                        .map(
+                          (item) => `
+                            <button
+                              class="material-result"
+                              type="button"
+                              data-select-material="${escapeHtml(item.id)}"
+                              data-material-label="${escapeHtml(`${item.code} · ${item.description} · ${item.unit}`)}"
+                            >
+                              <strong>${escapeHtml(item.code)}</strong>
+                              <span>${escapeHtml(item.description)}</span>
+                              <small>${escapeHtml(item.unit)}</small>
+                            </button>
+                          `
+                        )
+                        .join("")
+                    : hasSearch
+                      ? `<div class="empty-state"><p>Δεν βρέθηκε υλικό για το τρέχον search.</p></div>`
+                      : `<div class="empty-state"><p>Γράψε ΚΑΥ ή περιγραφή για να εμφανιστούν υλικά.</p></div>`
+                }
+              </div>
+            `
+        }
+      </div>
+
       ${
         permissions.canAddMaterials
           ? `
-            <form class="inline-form" data-material-form="${escapeHtml(task.id)}">
-              <select name="catalogId" required>
-                <option value="">Επιλογή υλικού από το απόθεμα</option>
-                ${inventoryOptions
-                  .map(
-                    (item) => `
-                      <option value="${escapeHtml(item.id)}">
-                        ${escapeHtml(item.code)} · ${escapeHtml(item.description)} · ${escapeHtml(item.unit)}
-                      </option>
+            <form class="inline-form inline-form--materials" data-material-form="${escapeHtml(task.id)}">
+              <input type="hidden" name="catalogId" value="${escapeHtml(selectedMaterialId || "")}" />
+              <div class="material-selected-shell">
+                ${
+                  selectedMaterial
+                    ? `
+                      <div class="material-selected-shell__value">
+                        ${escapeHtml(selectedMaterial.code)} · ${escapeHtml(selectedMaterial.description)} · ${escapeHtml(selectedMaterial.unit)}
+                      </div>
                     `
-                  )
-                  .join("")}
-              </select>
+                    : `<div class="material-selected-shell__placeholder">Επίλεξε πρώτα υλικό από τα αποτελέσματα αναζήτησης</div>`
+                }
+              </div>
               <input type="number" min="1" step="1" name="quantity" placeholder="Ποσότητα" required />
-              <button class="button button--secondary" type="submit">Προσθήκη</button>
+              <button class="button button--secondary" type="submit" ${selectedMaterial ? "" : "disabled"}>Προσθήκη</button>
             </form>
-            ${inventoryOptions.length ? "" : `<div class="empty-state"><p>Δεν βρέθηκε υλικό για το τρέχον search.</p></div>`}
           `
           : ""
       }
@@ -444,14 +487,14 @@ function renderSystemTab(task, permissions) {
   `;
 }
 
-function renderTabContent(task, activeTab, permissions, inventory, materialSearch) {
+function renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId) {
   switch (activeTab) {
     case "photos":
       return PhotoUploader(task, permissions);
     case "files":
       return renderFilesTab(task, permissions);
     case "materials":
-      return renderMaterialsTab(task, permissions, inventory, materialSearch);
+      return renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId);
     case "floors":
       return renderFloorsTab(task);
     case "safety":
@@ -571,7 +614,7 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
   `;
 }
 
-export function TaskDetail({ task, activeTab, permissions, inventory, materialSearch, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
+export function TaskDetail({ task, activeTab, permissions, inventory, materialSearch, selectedMaterialId, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
   const createdTimingSpec = permissions.canManageAssignment
     ? `
       <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
@@ -665,7 +708,7 @@ export function TaskDetail({ task, activeTab, permissions, inventory, materialSe
               .join("")}
           </div>
 
-          ${renderTabContent(task, activeTab, permissions, inventory, materialSearch)}
+          ${renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId)}
         </div>
 
         <aside class="detail-side surface">

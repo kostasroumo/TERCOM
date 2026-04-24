@@ -18,7 +18,7 @@ import {
 } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v9";
+const STORAGE_KEY = "birol-field-ops-prototype-v10";
 const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
 const app = document.querySelector("#app");
 
@@ -52,6 +52,7 @@ function loadState() {
       validationComment: "",
       cancellationComment: "",
       materialSearch: "",
+      selectedMaterialId: "",
       exportReturnRoute: "#/dashboard",
       reportAutoPrint: false,
       ...parsed.ui
@@ -182,9 +183,20 @@ function normalizeState(sourceState) {
     inventory: (sourceState.inventory?.length ? sourceState.inventory : MATERIAL_CATALOG_SEED).map(normalizeInventoryItem),
     ui: {
       materialSearch: "",
+      selectedMaterialId: "",
       ...sourceState.ui
     }
   };
+}
+
+function normalizeMaterialSearchText(value) {
+  return String(value ?? "")
+    .replaceAll("\u00a0", " ")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getVisibleTasks() {
@@ -278,7 +290,7 @@ function getPermissions(task) {
 }
 
 function getMaterialCatalogRows() {
-  const search = (state.ui.materialSearch || "").trim().toLowerCase();
+  const search = normalizeMaterialSearchText(state.ui.materialSearch || "");
 
   return state.inventory
     .filter((item) => {
@@ -286,7 +298,8 @@ function getMaterialCatalogRows() {
         return true;
       }
 
-      return [item.code, item.description, item.unit].join(" ").toLowerCase().includes(search);
+      const haystack = normalizeMaterialSearchText([item.code, item.description, item.unit].join(" "));
+      return haystack.includes(search);
     });
 }
 
@@ -591,6 +604,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       permissions: getPermissions(task),
       inventory: getMaterialCatalogRows(),
       materialSearch: state.ui.materialSearch,
+      selectedMaterialId: state.ui.selectedMaterialId,
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
       validationComment: state.ui.validationComment,
@@ -828,6 +842,7 @@ function handleClick(event) {
       state.ui.validationComment = "";
       state.ui.cancellationComment = "";
       state.ui.materialSearch = "";
+      state.ui.selectedMaterialId = "";
       saveState();
     }
     window.location.hash = nextRoute;
@@ -850,8 +865,18 @@ function handleClick(event) {
     state.ui.validationComment = "";
     state.ui.cancellationComment = "";
     state.ui.materialSearch = "";
+    state.ui.selectedMaterialId = "";
     saveState();
     window.location.hash = `#/tasks/${encodeURIComponent(taskTarget.getAttribute("data-open-task"))}`;
+    return;
+  }
+
+  const materialTarget = event.target.closest("[data-select-material]");
+  if (materialTarget) {
+    state.ui.selectedMaterialId = materialTarget.getAttribute("data-select-material") || "";
+    state.ui.materialSearch = materialTarget.getAttribute("data-material-label") || "";
+    saveState();
+    render();
     return;
   }
 
@@ -970,6 +995,7 @@ function handleInput(event) {
 
   if (event.target.matches("[data-material-search]")) {
     state.ui.materialSearch = event.target.value;
+    state.ui.selectedMaterialId = "";
     saveState();
     render();
     return;
@@ -1251,6 +1277,9 @@ function addMaterial(taskId, formData) {
     window.alert("Η ποσότητα πρέπει να είναι μεγαλύτερη από το μηδέν.");
     return;
   }
+
+  state.ui.materialSearch = "";
+  state.ui.selectedMaterialId = "";
 
   commitTaskChange(
     taskId,
