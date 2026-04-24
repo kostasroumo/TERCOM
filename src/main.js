@@ -199,6 +199,21 @@ function normalizeMaterialSearchText(value) {
     .trim();
 }
 
+function restoreMaterialSearchFocus(selectionStart, selectionEnd) {
+  window.requestAnimationFrame(() => {
+    const nextInput = document.querySelector("[data-material-search]");
+    if (!nextInput) {
+      return;
+    }
+
+    nextInput.focus();
+
+    if (typeof selectionStart === "number" && typeof selectionEnd === "number") {
+      nextInput.setSelectionRange(selectionStart, selectionEnd);
+    }
+  });
+}
+
 function getVisibleTasks() {
   if (state.currentRole !== "partner") {
     return state.tasks;
@@ -994,10 +1009,13 @@ function handleInput(event) {
   }
 
   if (event.target.matches("[data-material-search]")) {
+    const selectionStart = event.target.selectionStart ?? event.target.value.length;
+    const selectionEnd = event.target.selectionEnd ?? event.target.value.length;
     state.ui.materialSearch = event.target.value;
     state.ui.selectedMaterialId = "";
     saveState();
     render();
+    restoreMaterialSearchFocus(selectionStart, selectionEnd);
     return;
   }
 }

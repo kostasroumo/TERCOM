@@ -221,7 +221,8 @@ function renderMaterialsTab(task, permissions, inventory, materialSearch, select
   const inventoryOptions = inventory || [];
   const selectedMaterial = inventoryOptions.find((item) => item.id === selectedMaterialId) || null;
   const hasSearch = Boolean((materialSearch || "").trim());
-  const resultItems = inventoryOptions.slice(0, 12);
+  const resultItems = inventoryOptions;
+  const resultCount = resultItems.length;
 
   return `
     <section class="tab-panel">
@@ -257,6 +258,10 @@ function renderMaterialsTab(task, permissions, inventory, materialSearch, select
               </article>
             `
             : `
+              <div class="material-picker__meta">
+                <strong>${resultCount}</strong>
+                <span>${hasSearch ? "υλικά που ταιριάζουν" : "συνολικά υλικά από το catalog"}</span>
+              </div>
               <div class="material-picker__results">
                 ${
                   resultItems.length
