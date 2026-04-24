@@ -217,9 +217,8 @@ function renderFilesTab(task, permissions) {
   `;
 }
 
-function renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId) {
+function renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial) {
   const inventoryOptions = inventory || [];
-  const selectedMaterial = inventoryOptions.find((item) => item.id === selectedMaterialId) || null;
   const hasSearch = Boolean((materialSearch || "").trim());
   const resultItems = inventoryOptions;
   const resultCount = resultItems.length;
@@ -272,7 +271,6 @@ function renderMaterialsTab(task, permissions, inventory, materialSearch, select
                               class="material-result"
                               type="button"
                               data-select-material="${escapeHtml(item.id)}"
-                              data-material-label="${escapeHtml(`${item.code} · ${item.description} · ${item.unit}`)}"
                             >
                               <strong>${escapeHtml(item.code)}</strong>
                               <span>${escapeHtml(item.description)}</span>
@@ -492,14 +490,14 @@ function renderSystemTab(task, permissions) {
   `;
 }
 
-function renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId) {
+function renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial) {
   switch (activeTab) {
     case "photos":
       return PhotoUploader(task, permissions);
     case "files":
       return renderFilesTab(task, permissions);
     case "materials":
-      return renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId);
+      return renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial);
     case "floors":
       return renderFloorsTab(task);
     case "safety":
@@ -619,7 +617,19 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
   `;
 }
 
-export function TaskDetail({ task, activeTab, permissions, inventory, materialSearch, selectedMaterialId, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
+export function TaskDetail({
+  task,
+  activeTab,
+  permissions,
+  inventory,
+  materialSearch,
+  selectedMaterialId,
+  selectedMaterial,
+  currentRoleLabel,
+  currentUserName,
+  validationComment,
+  cancellationComment
+}) {
   const createdTimingSpec = permissions.canManageAssignment
     ? `
       <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
@@ -713,7 +723,7 @@ export function TaskDetail({ task, activeTab, permissions, inventory, materialSe
               .join("")}
           </div>
 
-          ${renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId)}
+          ${renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial)}
         </div>
 
         <aside class="detail-side surface">

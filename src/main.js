@@ -620,6 +620,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       inventory: getMaterialCatalogRows(),
       materialSearch: state.ui.materialSearch,
       selectedMaterialId: state.ui.selectedMaterialId,
+      selectedMaterial: state.inventory.find((item) => item.id === state.ui.selectedMaterialId) || null,
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
       validationComment: state.ui.validationComment,
@@ -889,7 +890,7 @@ function handleClick(event) {
   const materialTarget = event.target.closest("[data-select-material]");
   if (materialTarget) {
     state.ui.selectedMaterialId = materialTarget.getAttribute("data-select-material") || "";
-    state.ui.materialSearch = materialTarget.getAttribute("data-material-label") || "";
+    state.ui.materialSearch = "";
     saveState();
     render();
     return;
