@@ -18,7 +18,7 @@ import {
 } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v8";
+const STORAGE_KEY = "birol-field-ops-prototype-v9";
 const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
 const app = document.querySelector("#app");
 
@@ -51,7 +51,7 @@ function loadState() {
       expandedAdminAssignee: "partner-1",
       validationComment: "",
       cancellationComment: "",
-      inventorySearch: "",
+      materialSearch: "",
       exportReturnRoute: "#/dashboard",
       reportAutoPrint: false,
       ...parsed.ui
@@ -84,10 +84,6 @@ function getRoute() {
 
   if (hash === "tasks") {
     return { view: "tasks" };
-  }
-
-  if (hash === "inventory") {
-    return { view: "inventory" };
   }
 
   if (hash === "reports/open-tasks") {
@@ -185,7 +181,7 @@ function normalizeState(sourceState) {
     tasks: (sourceState.tasks || []).map(normalizeTask),
     inventory: (sourceState.inventory?.length ? sourceState.inventory : MATERIAL_CATALOG_SEED).map(normalizeInventoryItem),
     ui: {
-      inventorySearch: "",
+      materialSearch: "",
       ...sourceState.ui
     }
   };
@@ -281,33 +277,10 @@ function getPermissions(task) {
   };
 }
 
-function getMaterialConsumption(item) {
-  return state.tasks.reduce((sum, task) => {
-    const taskUsed = (task.materials || []).reduce((materialSum, material) => {
-      const matchesCatalogId = material.catalogId && material.catalogId === item.id;
-      const matchesLegacyShape = !material.catalogId && material.code === item.code && material.description === item.description;
-      return matchesCatalogId || matchesLegacyShape ? materialSum + (Number(material.quantity) || 0) : materialSum;
-    }, 0);
-
-    return sum + taskUsed;
-  }, 0);
-}
-
-function getInventoryRows() {
-  const search = (state.ui.inventorySearch || "").trim().toLowerCase();
+function getMaterialCatalogRows() {
+  const search = (state.ui.materialSearch || "").trim().toLowerCase();
 
   return state.inventory
-    .map((item) => {
-      const used = getMaterialConsumption(item);
-      const available = item.stock - used;
-      return {
-        ...item,
-        used,
-        available,
-        stockConfigured: item.stock > 0,
-        needsAttention: item.stock > 0 ? available <= item.minStock : available < 0
-      };
-    })
     .filter((item) => {
       if (!search) {
         return true;
@@ -483,97 +456,6 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
   `;
 }
 
-function renderInventoryView() {
-  const inventoryRows = getInventoryRows();
-  const lowStockCount = inventoryRows.filter((item) => item.needsAttention).length;
-
-  return `
-    <section class="surface">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Inventory</p>
-          <h2>Απόθεμα υλικών</h2>
-        </div>
-        <p class="section-copy">Το catalog βασίζεται στο πρώτο sheet &quot;ΥΛΙΚΑ&quot; του Excel. Οι ποσότητες stock ξεκινούν από το app και ενημερώνονται από τον admin.</p>
-      </div>
-
-      <div class="inventory-summary">
-        <article class="inventory-stat">
-          <span>Γραμμές catalog</span>
-          <strong>${inventoryRows.length}</strong>
-        </article>
-        <article class="inventory-stat">
-          <span>Χαμηλό stock</span>
-          <strong>${lowStockCount}</strong>
-        </article>
-      </div>
-
-      <div class="filter-bar">
-        <label class="field">
-          <span>Αναζήτηση υλικού</span>
-          <input type="search" value="${escapeHtml(state.ui.inventorySearch || "")}" placeholder="ΚΑΥ, περιγραφή, μονάδα..." data-inventory-search />
-        </label>
-      </div>
-
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ΚΑΥ</th>
-              <th>Περιγραφή</th>
-              <th>ΜΜ</th>
-              <th>Συνολικό stock</th>
-              <th>Κατανάλωση</th>
-              <th>Διαθέσιμο</th>
-              <th>Ελάχιστο</th>
-              <th>Ενέργεια</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              inventoryRows.length
-                ? inventoryRows
-                    .map(
-                      (item) => `
-                        <tr class="${item.needsAttention ? "inventory-row--warning" : ""}">
-                          <td>${escapeHtml(item.code)}</td>
-                          <td>
-                            <div class="table-primary">${escapeHtml(item.description)}</div>
-                            <div class="table-secondary">${item.needsAttention ? "Θέλει replenishment" : "ΟΚ"}</div>
-                          </td>
-                          <td>${escapeHtml(item.unit)}</td>
-                          <td>
-                            <form class="inventory-stock-form" data-stock-form="${escapeHtml(item.id)}">
-                              <input type="number" min="0" step="1" name="stock" value="${escapeHtml(item.stock)}" />
-                              <input type="number" min="0" step="1" name="minStock" value="${escapeHtml(item.minStock)}" />
-                              <button class="button button--secondary" type="submit">Αποθήκευση</button>
-                            </form>
-                          </td>
-                          <td>${escapeHtml(item.used)}</td>
-                          <td><strong>${escapeHtml(item.available)}</strong></td>
-                          <td>${escapeHtml(item.minStock)}</td>
-                          <td>${
-                            item.available < 0
-                              ? `<span class="pill pill--cancelled">Έλλειμμα</span>`
-                              : !item.stockConfigured
-                                ? `<span class="pill pill--scheduled">Μη ρυθμισμένο</span>`
-                                : item.needsAttention
-                                  ? `<span class="pill pill--completed-with-pending">Low stock</span>`
-                                  : `<span class="pill pill--completed">ΟΚ</span>`
-                          }</td>
-                        </tr>
-                      `
-                    )
-                    .join("")
-                : `<tr><td colspan="8">Δεν βρέθηκαν υλικά για τα τρέχοντα κριτήρια.</td></tr>`
-            }
-          </tbody>
-        </table>
-      </div>
-    </section>
-  `;
-}
-
 function render() {
   const route = getRoute();
   const visibleTasks = getVisibleTasks();
@@ -613,16 +495,6 @@ function render() {
             <span class="nav-link__icon">${icon("tasks")}</span>
             <span class="nav-link__label">Εργασίες</span>
           </button>
-          ${
-            state.currentRole === "admin"
-              ? `
-                <button class="nav-link${route.view === "inventory" ? " is-active" : ""}" data-route="#/inventory">
-                  <span class="nav-link__icon">${icon("materials")}</span>
-                  <span class="nav-link__label">Απόθεμα</span>
-                </button>
-              `
-              : ""
-          }
           <button class="nav-link nav-link--action${route.view === "report" ? " is-active" : ""}" data-export-open-pdf>
             <span class="nav-link__icon">${icon("print")}</span>
             <span class="nav-link__label">Export PDF</span>
@@ -634,7 +506,7 @@ function render() {
         <header class="topbar surface">
           <div>
             <p class="eyebrow">Operational View</p>
-            <h1>${route.view === "dashboard" ? "Κέντρο ελέγχου εργασιών πεδίου" : route.view === "tasks" ? "Διαχείριση εργασιών" : route.view === "inventory" ? "Απόθεμα υλικών" : route.view === "report" ? "Αναφορά ανοιχτών εργασιών" : "Καρτέλα εργασίας"}</h1>
+            <h1>${route.view === "dashboard" ? "Κέντρο ελέγχου εργασιών πεδίου" : route.view === "tasks" ? "Διαχείριση εργασιών" : route.view === "report" ? "Αναφορά ανοιχτών εργασιών" : "Καρτέλα εργασίας"}</h1>
           </div>
 
           <div class="topbar__controls">
@@ -680,20 +552,6 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
     return renderOpenTasksReport(visibleTasks.filter((task) => !["completed", "cancelled"].includes(task.status)));
   }
 
-  if (route.view === "inventory") {
-    if (state.currentRole !== "admin") {
-      return `
-        <section class="surface empty-screen">
-          <h2>Δεν έχεις πρόσβαση στο απόθεμα</h2>
-          <p>Το stock των υλικών είναι διαθέσιμο μόνο στον admin.</p>
-          <button class="button" data-route="#/dashboard">Επιστροφή στο dashboard</button>
-        </section>
-      `;
-    }
-
-    return renderInventoryView();
-  }
-
   if (route.view === "tasks") {
     const cities = [...new Set(visibleTasks.map((task) => task.city))].sort((a, b) => a.localeCompare(b, "el"));
     return TaskTable({
@@ -731,7 +589,8 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       task,
       activeTab: state.ui.activeTab,
       permissions: getPermissions(task),
-      inventory: getInventoryRows(),
+      inventory: getMaterialCatalogRows(),
+      materialSearch: state.ui.materialSearch,
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
       validationComment: state.ui.validationComment,
@@ -968,6 +827,7 @@ function handleClick(event) {
     if (nextRoute?.startsWith("#/tasks") || nextRoute?.startsWith("#/dashboard")) {
       state.ui.validationComment = "";
       state.ui.cancellationComment = "";
+      state.ui.materialSearch = "";
       saveState();
     }
     window.location.hash = nextRoute;
@@ -989,6 +849,7 @@ function handleClick(event) {
     state.ui.activeTab = "main";
     state.ui.validationComment = "";
     state.ui.cancellationComment = "";
+    state.ui.materialSearch = "";
     saveState();
     window.location.hash = `#/tasks/${encodeURIComponent(taskTarget.getAttribute("data-open-task"))}`;
     return;
@@ -1107,10 +968,11 @@ function handleInput(event) {
     return;
   }
 
-  if (event.target.matches("[data-inventory-search]")) {
-    state.ui.inventorySearch = event.target.value;
+  if (event.target.matches("[data-material-search]")) {
+    state.ui.materialSearch = event.target.value;
     saveState();
     render();
+    return;
   }
 }
 
@@ -1155,29 +1017,6 @@ function handleSubmit(event) {
     return;
   }
 
-  const stockForm = event.target.closest("[data-stock-form]");
-  if (stockForm) {
-    event.preventDefault();
-    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε το stock του υλικού;")) {
-      return;
-    }
-    updateInventoryStock(stockForm.getAttribute("data-stock-form"), new FormData(stockForm));
-  }
-}
-
-function updateInventoryStock(itemId, formData) {
-  state.inventory = state.inventory.map((item) =>
-    item.id === itemId
-      ? {
-          ...item,
-          stock: Math.max(0, Number(formData.get("stock")) || 0),
-          minStock: Math.max(0, Number(formData.get("minStock")) || 0)
-        }
-      : item
-  );
-
-  saveState();
-  render();
 }
 
 function commitTaskChange(taskId, mutateTask, summary, details) {
@@ -1410,14 +1249,6 @@ function addMaterial(taskId, formData) {
 
   if (!Number.isFinite(quantity) || quantity <= 0) {
     window.alert("Η ποσότητα πρέπει να είναι μεγαλύτερη από το μηδέν.");
-    return;
-  }
-
-  const used = getMaterialConsumption(catalogItem);
-  const available = catalogItem.stock - used;
-
-  if (quantity > available) {
-    window.alert(`Δεν υπάρχει αρκετό διαθέσιμο stock. Διαθέσιμο: ${available} ${catalogItem.unit}.`);
     return;
   }
 

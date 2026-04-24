@@ -217,7 +217,7 @@ function renderFilesTab(task, permissions) {
   `;
 }
 
-function renderMaterialsTab(task, permissions, inventory) {
+function renderMaterialsTab(task, permissions, inventory, materialSearch) {
   const inventoryOptions = inventory || [];
 
   return `
@@ -225,8 +225,20 @@ function renderMaterialsTab(task, permissions, inventory) {
       <div class="tab-panel__head">
         <div>
           <h3>Υλικά</h3>
-          <p>Καταγραφή υλικών που χρησιμοποιήθηκαν στην εργασία πεδίου με έλεγχο διαθέσιμου stock.</p>
+          <p>Καταγραφή υλικών που χρησιμοποιήθηκαν στην εργασία πεδίου με γρήγορη αναζήτηση από το catalog του Excel.</p>
         </div>
+      </div>
+
+      <div class="filter-bar filter-bar--materials">
+        <label class="field">
+          <span>Αναζήτηση υλικού</span>
+          <input
+            type="search"
+            value="${escapeHtml(materialSearch || "")}"
+            placeholder="ΚΑΥ ή περιγραφή υλικού..."
+            data-material-search
+          />
+        </label>
       </div>
 
       ${
@@ -239,7 +251,7 @@ function renderMaterialsTab(task, permissions, inventory) {
                   .map(
                     (item) => `
                       <option value="${escapeHtml(item.id)}">
-                        ${escapeHtml(item.code)} · ${escapeHtml(item.description)} · ${escapeHtml(item.available)} ${escapeHtml(item.unit)} διαθέσιμα
+                        ${escapeHtml(item.code)} · ${escapeHtml(item.description)} · ${escapeHtml(item.unit)}
                       </option>
                     `
                   )
@@ -248,13 +260,14 @@ function renderMaterialsTab(task, permissions, inventory) {
               <input type="number" min="1" step="1" name="quantity" placeholder="Ποσότητα" required />
               <button class="button button--secondary" type="submit">Προσθήκη</button>
             </form>
+            ${inventoryOptions.length ? "" : `<div class="empty-state"><p>Δεν βρέθηκε υλικό για το τρέχον search.</p></div>`}
           `
           : ""
       }
 
       <div class="inventory-inline-note">
-        <strong>Stock source</strong>
-        <span>Το catalog έρχεται από το πρώτο sheet &quot;ΥΛΙΚΑ&quot; του Excel. Οι διαθέσιμες ποσότητες ενημερώνονται από την οθόνη &quot;Απόθεμα&quot;.</span>
+        <strong>Catalog source</strong>
+        <span>Το catalog έρχεται από το πρώτο sheet &quot;ΥΛΙΚΑ&quot; του Excel. Προς το παρόν χρησιμοποιείται μόνο για εύκολη επιλογή υλικού, χωρίς stock.</span>
       </div>
 
       <div class="table-wrap table-wrap--dense">
@@ -431,14 +444,14 @@ function renderSystemTab(task, permissions) {
   `;
 }
 
-function renderTabContent(task, activeTab, permissions, inventory) {
+function renderTabContent(task, activeTab, permissions, inventory, materialSearch) {
   switch (activeTab) {
     case "photos":
       return PhotoUploader(task, permissions);
     case "files":
       return renderFilesTab(task, permissions);
     case "materials":
-      return renderMaterialsTab(task, permissions, inventory);
+      return renderMaterialsTab(task, permissions, inventory, materialSearch);
     case "floors":
       return renderFloorsTab(task);
     case "safety":
@@ -558,7 +571,7 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
   `;
 }
 
-export function TaskDetail({ task, activeTab, permissions, inventory, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
+export function TaskDetail({ task, activeTab, permissions, inventory, materialSearch, currentRoleLabel, currentUserName, validationComment, cancellationComment }) {
   const createdTimingSpec = permissions.canManageAssignment
     ? `
       <div><dt>Δημιουργήθηκε</dt><dd>${formatCompactDateTime(task.createdAt)}</dd></div>
@@ -652,7 +665,7 @@ export function TaskDetail({ task, activeTab, permissions, inventory, currentRol
               .join("")}
           </div>
 
-          ${renderTabContent(task, activeTab, permissions, inventory)}
+          ${renderTabContent(task, activeTab, permissions, inventory, materialSearch)}
         </div>
 
         <aside class="detail-side surface">
