@@ -2,7 +2,9 @@ import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
 import { MATERIAL_CATALOG_SEED } from "./data/materialCatalog.js";
+import { WORK_CATALOG_SEED } from "./data/workCatalog.js";
 import {
+  ASSIGNEE_OPTIONS,
   createInitialState,
   getDefaultLeitourgiesInwnStage,
   getLeitourgiesInwnStageFlow,
@@ -13,12 +15,11 @@ import {
   ROLE_LABELS,
   STATUS_META,
   STATUS_ORDER,
-  TECHNICIANS,
   USER_DIRECTORY
 } from "./data/mockData.js";
 import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 
-const STORAGE_KEY = "birol-field-ops-prototype-v10";
+const STORAGE_KEY = "birol-field-ops-prototype-v11";
 const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
 const app = document.querySelector("#app");
 
@@ -53,6 +54,8 @@ function loadState() {
       cancellationComment: "",
       materialSearch: "",
       selectedMaterialId: "",
+      workSearch: "",
+      selectedWorkId: "",
       exportReturnRoute: "#/dashboard",
       reportAutoPrint: false,
       ...parsed.ui
@@ -109,6 +112,36 @@ function getCurrentUser() {
   return getCurrentRoleUsers().find((user) => user.id === state.currentUserId) || getCurrentRoleUsers()[0];
 }
 
+function inferTaskTypeFromPipeline(pipelineKey) {
+  if (pipelineKey === "leitourgies_inwn") {
+    return "installation";
+  }
+
+  if (pipelineKey === "syntirisi_loipes") {
+    return "repair";
+  }
+
+  return "survey";
+}
+
+function getAssignableUsers() {
+  return ASSIGNEE_OPTIONS;
+}
+
+function getAssignableUserById(userId) {
+  return getAssignableUsers().find((user) => user.id === userId) || null;
+}
+
+function normalizeLegacyUserName(name) {
+  const legacyMap = {
+    "Admin 1": "TERCOM",
+    "Συνεργάτης 1": "ΜΠΙΜΠΕΡ ΝΕΤΖΜΗ",
+    "Συνεργάτης 2": "Δ. ΝΕΟΓΛΟΥ - Κ. ΧΑΤΖΗΑΝΔΡΕΟΥ Ο.Ε"
+  };
+
+  return legacyMap[name] || name || "";
+}
+
 function getTaskById(taskId) {
   return state.tasks.find((task) => task.id === taskId);
 }
@@ -116,11 +149,14 @@ function getTaskById(taskId) {
 function normalizeTask(task) {
   const serviceProvider = task.serviceProvider || "other";
   const isLeitourgiesTask = (task.pipeline || "autopsia") === "leitourgies_inwn";
+  const assignedUser = getAssignableUserById(task.assignedUserId);
 
   return {
     ...task,
     pipeline: task.pipeline || "autopsia",
     serviceProvider,
+    adminNotes: task.adminNotes ?? task.notes ?? "",
+    partnerNotes: task.partnerNotes ?? "",
     customerName: task.customerName || "",
     mobilePhone: task.mobilePhone || "",
     landlinePhone: task.landlinePhone || "",
@@ -128,6 +164,8 @@ function normalizeTask(task) {
     bid: task.bid || task.serviceRequestId || "",
     assignedAt: task.assignedAt || (task.assignedUserId ? task.startDate || task.createdAt || "" : ""),
     completedAt: task.completedAt || (task.status === "completed" ? task.endDate || task.updatedAt || "" : ""),
+    createdBy: normalizeLegacyUserName(task.createdBy),
+    updatedBy: normalizeLegacyUserName(task.updatedBy),
     flags: {
       apiStatus: task.flags?.apiStatus || "LOCAL-ONLY",
       validationLock: !!task.flags?.validationLock,
@@ -140,10 +178,29 @@ function normalizeTask(task) {
       cancellationReason: task.flags?.cancellationReason || ""
     },
     assignedUserId: task.assignedUserId || "",
-    assignedUserName: task.assignedUserName || "",
+    assignedUserName: assignedUser?.name || normalizeLegacyUserName(task.assignedUserName),
     pipelineHistory: Array.isArray(task.pipelineHistory) ? task.pipelineHistory : [],
     fiberStageKey: isLeitourgiesTask ? task.fiberStageKey || getDefaultLeitourgiesInwnStage(serviceProvider) : task.fiberStageKey || "",
-    fiberStageHistory: Array.isArray(task.fiberStageHistory) ? task.fiberStageHistory : []
+    fiberStageHistory: Array.isArray(task.fiberStageHistory) ? task.fiberStageHistory : [],
+    workItems: Array.isArray(task.workItems) ? task.workItems : [],
+    photos: Array.isArray(task.photos)
+      ? task.photos.map((photo) => ({
+          ...photo,
+          uploadedBy: normalizeLegacyUserName(photo.uploadedBy)
+        }))
+      : [],
+    files: Array.isArray(task.files)
+      ? task.files.map((file) => ({
+          ...file,
+          uploadedBy: normalizeLegacyUserName(file.uploadedBy)
+        }))
+      : [],
+    history: Array.isArray(task.history)
+      ? task.history.map((entry) => ({
+          ...entry,
+          author: normalizeLegacyUserName(entry.author)
+        }))
+      : []
   };
 }
 
@@ -185,6 +242,8 @@ function normalizeState(sourceState) {
     ui: {
       materialSearch: "",
       selectedMaterialId: "",
+      workSearch: "",
+      selectedWorkId: "",
       ...sourceState.ui
     }
   };
@@ -203,6 +262,21 @@ function normalizeMaterialSearchText(value) {
 function restoreMaterialSearchFocus(selectionStart, selectionEnd) {
   window.requestAnimationFrame(() => {
     const nextInput = document.querySelector("[data-material-search]");
+    if (!nextInput) {
+      return;
+    }
+
+    nextInput.focus();
+
+    if (typeof selectionStart === "number" && typeof selectionEnd === "number") {
+      nextInput.setSelectionRange(selectionStart, selectionEnd);
+    }
+  });
+}
+
+function restoreWorkSearchFocus(selectionStart, selectionEnd) {
+  window.requestAnimationFrame(() => {
+    const nextInput = document.querySelector("[data-work-search]");
     if (!nextInput) {
       return;
     }
@@ -303,10 +377,12 @@ function getPermissions(task) {
     canEditCore: isAdmin,
     canManageAssignment: isAdmin,
     canEditStatusDirectly: isAdmin,
-    canEditNotes: isAdmin || isAssignedPartner,
+    canEditAdminNotes: isAdmin,
+    canEditPartnerNotes: isAssignedPartner,
     canUploadPhotos: isAdmin || isAssignedPartner,
     canUploadFiles: isAdmin || isAssignedPartner,
     canAddMaterials: isAdmin || isAssignedPartner,
+    canAddWorkItems: isAdmin || isAssignedPartner,
     canEditSafety: isAdmin || isAssignedPartner,
     canScheduleVisit: isAssignedPartner && ["assigned", "scheduled"].includes(task.status),
     canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
@@ -333,6 +409,19 @@ function getMaterialCatalogRows() {
     });
 }
 
+function getWorkCatalogRows() {
+  const search = normalizeMaterialSearchText(state.ui.workSearch || "");
+
+  return WORK_CATALOG_SEED.filter((item) => {
+    if (!search) {
+      return true;
+    }
+
+    const haystack = normalizeMaterialSearchText([item.article, item.description].join(" "));
+    return haystack.includes(search);
+  });
+}
+
 function canCreateTasks() {
   return state.currentRole === "admin";
 }
@@ -352,7 +441,9 @@ function getFilteredTasks() {
         task.mobilePhone,
         task.landlinePhone,
         task.assignedUserName,
-        task.projectName
+        task.projectName,
+        task.adminNotes,
+        task.partnerNotes
       ]
         .join(" ")
         .toLowerCase()
@@ -399,11 +490,11 @@ function renderPipelineStatusSections(tasks, technicianFilter = "") {
 
 function renderAdminDashboard(visibleTasks) {
   const assigneeSections = [
-    ...TECHNICIANS.map((technician) => ({
-      id: technician.id,
-      label: technician.name,
+    ...getAssignableUsers().map((assignee) => ({
+      id: assignee.id,
+      label: assignee.name,
       copy: "Επισκόπηση pipelines και queues για τον συγκεκριμένο συνεργάτη.",
-      tasks: visibleTasks.filter((task) => task.assignedUserId === technician.id)
+      tasks: visibleTasks.filter((task) => task.assignedUserId === assignee.id)
     })),
     {
       id: "unassigned",
@@ -602,7 +693,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       filters: state.filters,
       cities,
       pipelines: PIPELINE_ORDER,
-      technicians: TECHNICIANS,
+      technicians: getAssignableUsers(),
       currentRole: state.currentRole
     });
   }
@@ -636,6 +727,10 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       materialSearch: state.ui.materialSearch,
       selectedMaterialId: state.ui.selectedMaterialId,
       selectedMaterial: state.inventory.find((item) => item.id === state.ui.selectedMaterialId) || null,
+      workCatalog: getWorkCatalogRows(),
+      workSearch: state.ui.workSearch,
+      selectedWorkId: state.ui.selectedWorkId,
+      selectedWork: WORK_CATALOG_SEED.find((item) => item.id === state.ui.selectedWorkId) || null,
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
       validationComment: state.ui.validationComment,
@@ -715,13 +810,16 @@ function renderOpenTasksReport(openTasks) {
             <div><strong>Updated</strong><span>${escapeHtml(task.updatedBy)} · ${escapeHtml(formatDateTime(task.updatedAt))}</span></div>
           </div>
           <div class="report-notes">
-            <strong>Σημειώσεις</strong>
-            <p>${escapeHtml(task.notes || "Δεν υπάρχουν σημειώσεις.")}</p>
+            <strong>Σημειώσεις Admin</strong>
+            <p>${escapeHtml(task.adminNotes || "Δεν υπάρχουν σημειώσεις admin.")}</p>
+            <strong>Σημειώσεις Συνεργάτη</strong>
+            <p>${escapeHtml(task.partnerNotes || "Δεν υπάρχουν σημειώσεις συνεργάτη.")}</p>
           </div>
           <div class="report-metrics">
             <span>Φωτογραφίες: ${task.photos.length}</span>
             <span>Αρχεία: ${task.files.length}</span>
             <span>Υλικά: ${task.materials.length}</span>
+            <span>Εργασίες: ${task.workItems.length}</span>
             <span>Safety items: ${task.safety.length}</span>
           </div>
         </article>
@@ -784,11 +882,12 @@ function renderCreateModal() {
             <input name="title" placeholder="π.χ. Αυτοψία readiness" required />
           </div>
           <div class="field">
-            <span>Είδος</span>
-            <select name="type">
-              <option value="survey">Αυτοψία</option>
-              <option value="installation">Εγκατάσταση</option>
-              <option value="repair">Επισκευή</option>
+            <span>Pipeline</span>
+            <select name="pipeline">
+              ${PIPELINE_ORDER.map(
+                (pipelineKey) =>
+                  `<option value="${pipelineKey}"${pipelineKey === "autopsia" ? " selected" : ""}>${escapeHtml(PIPELINE_META[pipelineKey].label)}</option>`
+              ).join("")}
             </select>
           </div>
           <div class="field">
@@ -805,7 +904,12 @@ function renderCreateModal() {
           </div>
           <div class="field">
             <span>Team</span>
-            <input name="resourceTeam" placeholder="π.χ. Fiber Survey Crew A" required />
+            <select name="resourceTeam" required>
+              <option value="">Επίλεξε team / συνεργάτη</option>
+              ${getAssignableUsers()
+                .map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)}</option>`)
+                .join("")}
+            </select>
           </div>
           <div class="field">
             <span>Πάροχος</span>
@@ -840,8 +944,8 @@ function renderCreateModal() {
             <input name="city" required />
           </div>
           <div class="field field--wide">
-            <span>Σημειώσεις</span>
-            <textarea name="notes" rows="5"></textarea>
+            <span>Σημειώσεις admin</span>
+            <textarea name="adminNotes" rows="5"></textarea>
           </div>
           <div class="form-actions">
             <button class="button" type="submit">Δημιουργία</button>
@@ -874,6 +978,8 @@ function handleClick(event) {
       state.ui.cancellationComment = "";
       state.ui.materialSearch = "";
       state.ui.selectedMaterialId = "";
+      state.ui.workSearch = "";
+      state.ui.selectedWorkId = "";
       saveState();
     }
     window.location.hash = nextRoute;
@@ -897,6 +1003,8 @@ function handleClick(event) {
     state.ui.cancellationComment = "";
     state.ui.materialSearch = "";
     state.ui.selectedMaterialId = "";
+    state.ui.workSearch = "";
+    state.ui.selectedWorkId = "";
     saveState();
     window.location.hash = `#/tasks/${encodeURIComponent(taskTarget.getAttribute("data-open-task"))}`;
     return;
@@ -906,6 +1014,15 @@ function handleClick(event) {
   if (materialTarget) {
     state.ui.selectedMaterialId = materialTarget.getAttribute("data-select-material") || "";
     state.ui.materialSearch = "";
+    saveState();
+    render();
+    return;
+  }
+
+  const workTarget = event.target.closest("[data-select-work]");
+  if (workTarget) {
+    state.ui.selectedWorkId = workTarget.getAttribute("data-select-work") || "";
+    state.ui.workSearch = "";
     saveState();
     render();
     return;
@@ -953,7 +1070,7 @@ function handleClick(event) {
   }
 
   if (event.target.closest("[data-reset-demo]")) {
-    state = createInitialState();
+    state = normalizeState(createInitialState());
     saveState();
     window.location.hash = "#/dashboard";
     render();
@@ -1034,6 +1151,17 @@ function handleInput(event) {
     restoreMaterialSearchFocus(selectionStart, selectionEnd);
     return;
   }
+
+  if (event.target.matches("[data-work-search]")) {
+    const selectionStart = event.target.selectionStart ?? event.target.value.length;
+    const selectionEnd = event.target.selectionEnd ?? event.target.value.length;
+    state.ui.workSearch = event.target.value;
+    state.ui.selectedWorkId = "";
+    saveState();
+    render();
+    restoreWorkSearchFocus(selectionStart, selectionEnd);
+    return;
+  }
 }
 
 function handleSubmit(event) {
@@ -1064,6 +1192,16 @@ function handleSubmit(event) {
       return;
     }
     addMaterial(materialForm.getAttribute("data-material-form"), new FormData(materialForm));
+    return;
+  }
+
+  const workForm = event.target.closest("[data-work-form]");
+  if (workForm) {
+    event.preventDefault();
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε το νέο άρθρο εργασίας;")) {
+      return;
+    }
+    addWorkItem(workForm.getAttribute("data-work-form"), new FormData(workForm));
     return;
   }
 
@@ -1108,12 +1246,13 @@ function createTaskFromForm(formData) {
   const currentUser = getCurrentUser();
   const startDate = formData.get("startDate");
   const createdAt = new Date().toISOString();
+  const pipeline = formData.get("pipeline") || "autopsia";
 
   const newTask = {
     id: createId("TASK"),
     title: formData.get("title"),
-    type: formData.get("type"),
-    pipeline: "autopsia",
+    type: inferTaskTypeFromPipeline(pipeline),
+    pipeline,
     status: "unassigned",
     serviceProvider: formData.get("serviceProvider") || "other",
     address: formData.get("address"),
@@ -1131,7 +1270,8 @@ function createTaskFromForm(formData) {
     assignedUserName: "",
     startDate,
     endDate: "",
-    notes: formData.get("notes"),
+    adminNotes: formData.get("adminNotes"),
+    partnerNotes: "",
     createdAt,
     createdBy: currentUser.name,
     updatedAt: createdAt,
@@ -1159,10 +1299,10 @@ function createTaskFromForm(formData) {
       }
     ],
     pipelineHistory: [],
-    fiberStageKey: "",
+    fiberStageKey: pipeline === "leitourgies_inwn" ? getDefaultLeitourgiesInwnStage(formData.get("serviceProvider") || "other") : "",
     fiberStageHistory: [],
     materials: [],
-    floors: [{ id: createId("FL"), level: "Ισόγειο", units: 1, access: "Ελεύθερη", riser: "Κύριος" }],
+    workItems: [],
     safety: [{ id: createId("SAFE"), item: "Γενικός έλεγχος πρόσβασης", status: "needs-review", note: "Νέα εγγραφή" }]
   };
 
@@ -1192,6 +1332,21 @@ function updateTaskCore(taskId, formData) {
 
       if (nextValues.type !== undefined) {
         task.type = nextValues.type;
+      }
+
+      if (nextValues.pipeline !== undefined) {
+        const previousPipeline = task.pipeline;
+        task.pipeline = nextValues.pipeline || "autopsia";
+        task.type = inferTaskTypeFromPipeline(task.pipeline);
+
+        if (task.pipeline === "leitourgies_inwn") {
+          if (previousPipeline !== "leitourgies_inwn") {
+            task.fiberStageKey = getDefaultLeitourgiesInwnStage(task.serviceProvider);
+            task.fiberStageHistory = [];
+          }
+        } else if (previousPipeline === "leitourgies_inwn") {
+          task.fiberStageKey = "";
+        }
       }
 
       if (nextValues.projectName !== undefined) {
@@ -1240,8 +1395,12 @@ function updateTaskCore(taskId, formData) {
         task.city = nextValues.city;
       }
 
-      if (nextValues.notes !== undefined) {
-        task.notes = nextValues.notes;
+      if (nextValues.adminNotes !== undefined) {
+        task.adminNotes = nextValues.adminNotes;
+      }
+
+      if (nextValues.partnerNotes !== undefined) {
+        task.partnerNotes = nextValues.partnerNotes;
       }
 
       if (nextValues.startDate !== undefined) {
@@ -1330,6 +1489,33 @@ function addMaterial(taskId, formData) {
     },
     "Προσθήκη υλικού",
     `Καταχωρήθηκε νέο υλικό στη λίστα της εργασίας: ${catalogItem.code} · ${catalogItem.description}.`
+  );
+}
+
+function addWorkItem(taskId, formData) {
+  const catalogId = formData.get("catalogId");
+  const catalogItem = WORK_CATALOG_SEED.find((item) => item.id === catalogId);
+
+  if (!catalogItem) {
+    window.alert("Επίλεξε άρθρο - εργασία από το catalog εργασιών.");
+    return;
+  }
+
+  state.ui.workSearch = "";
+  state.ui.selectedWorkId = "";
+
+  commitTaskChange(
+    taskId,
+    (task) => {
+      task.workItems.unshift({
+        id: createId("WRKTASK"),
+        catalogId: catalogItem.id,
+        article: catalogItem.article,
+        description: catalogItem.description
+      });
+    },
+    "Προσθήκη άρθρου εργασίας",
+    `Καταχωρήθηκε νέο άρθρο εργασίας στη λίστα της εργασίας: ${catalogItem.article} · ${catalogItem.description}.`
   );
 }
 

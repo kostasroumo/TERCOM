@@ -118,8 +118,8 @@ export const LEITOURGIES_INWN_STAGE_META = {
     requiresValidation: false
   },
   emfyteysh: {
-    label: "Εμφύτευση",
-    hint: "Τοποθέτηση και σταθεροποίηση στοιχείων πεδίου.",
+    label: "Εμφύσηση",
+    hint: "Εμφύσηση / διέλευση ίνας στην έτοιμη όδευση.",
     requiresValidation: false
   },
   entos_ktiriou: {
@@ -168,20 +168,19 @@ export const PHOTO_CATEGORIES = [
 
 export const USER_DIRECTORY = {
   admin: [
-    { id: "admin-1", name: "Admin 1", title: "Administrator" }
+    { id: "admin-1", name: "TERCOM", title: "Administrator" }
   ],
   partner: [
-    { id: "partner-1", name: "Συνεργάτης 1", title: "Field Partner" },
-    { id: "partner-2", name: "Συνεργάτης 2", title: "Field Partner" }
+    { id: "partner-1", name: "ΜΠΙΜΠΕΡ ΝΕΤΖΜΗ", title: "Field Partner" },
+    { id: "partner-2", name: "Δ. ΝΕΟΓΛΟΥ - Κ. ΧΑΤΖΗΑΝΔΡΕΟΥ Ο.Ε", title: "Field Partner" },
+    { id: "partner-3", name: "FIBER GO", title: "Field Partner" }
   ]
 };
 
-export const TEAM_OPTIONS = [
-  "Fiber Survey Crew A",
-  "Civil Access Unit",
-  "Repair Cell North",
-  "Smart Readiness Squad"
-];
+export const PARTNERS = USER_DIRECTORY.partner;
+export const TECHNICIANS = PARTNERS;
+export const ASSIGNEE_OPTIONS = [...USER_DIRECTORY.partner, ...USER_DIRECTORY.admin];
+export const TEAM_OPTIONS = ASSIGNEE_OPTIONS.map((entry) => entry.name);
 
 function placeholderData(title, color) {
   const svg = `
@@ -577,7 +576,7 @@ const tasks = [
         author: "Συνεργάτης 2",
         at: "2026-04-03T08:20",
         summary: "Ολοκλήρωση σταδίου Χωματουργικό",
-        details: "Το στάδιο Χωματουργικό ολοκληρώθηκε και άνοιξε αυτόματα η Εμφύτευση."
+        details: "Το στάδιο Χωματουργικό ολοκληρώθηκε και άνοιξε αυτόματα η Εμφύσηση."
       }
     ],
     pipelineHistory: [
@@ -827,9 +826,6 @@ const tasks = [
   }
 ];
 
-export const PARTNERS = USER_DIRECTORY.partner;
-export const TECHNICIANS = PARTNERS;
-
 export function createInitialState() {
   return {
     currentRole: "admin",
@@ -848,6 +844,10 @@ export function createInitialState() {
       expandedAdminAssignee: "partner-1",
       validationComment: "",
       cancellationComment: "",
+      materialSearch: "",
+      selectedMaterialId: "",
+      workSearch: "",
+      selectedWorkId: "",
       exportReturnRoute: "#/dashboard",
       reportAutoPrint: false,
       inventorySearch: ""

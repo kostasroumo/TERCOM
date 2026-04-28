@@ -5,10 +5,10 @@ import {
   LEITOURGIES_INWN_STAGE_ORDER,
   OPERATOR_OPTIONS,
   PIPELINE_META,
+  PIPELINE_ORDER,
   STATUS_META,
   STATUS_OPTIONS_ORDER,
   STATUS_ORDER,
-  TASK_TYPES,
   TECHNICIANS
 } from "../data/mockData.js";
 import { escapeHtml, formatCompactDateTime, formatDateTime, formatElapsedDays, formatFileSize, icon } from "../lib/helpers.js";
@@ -84,9 +84,12 @@ function renderMainTab(task, permissions) {
         <input name="title" value="${escapeHtml(task.title)}" ${permissions.canEditCore ? "" : "disabled"} />
       </div>
       <div class="field">
-        <span>Είδος</span>
-        <select name="type" ${permissions.canEditCore ? "" : "disabled"}>
-          ${TASK_TYPES.map((type) => `<option value="${type.value}"${task.type === type.value ? " selected" : ""}>${escapeHtml(type.label)}</option>`).join("")}
+        <span>Pipeline</span>
+        <select name="pipeline" ${permissions.canEditCore ? "" : "disabled"}>
+          ${PIPELINE_ORDER.map(
+            (pipelineKey) =>
+              `<option value="${pipelineKey}"${task.pipeline === pipelineKey ? " selected" : ""}>${escapeHtml(PIPELINE_META[pipelineKey].label)}</option>`
+          ).join("")}
         </select>
       </div>
       <div class="field">
@@ -157,11 +160,15 @@ function renderMainTab(task, permissions) {
         <input type="datetime-local" name="endDate" value="${escapeHtml(task.endDate)}" ${permissions.canManageAssignment ? "" : "disabled"} />
       </div>
       <div class="field field--wide">
-        <span>Σημειώσεις</span>
-        <textarea name="notes" rows="8" ${permissions.canEditNotes ? "" : "disabled"}>${escapeHtml(task.notes)}</textarea>
+        <span>Σημειώσεις Admin</span>
+        <textarea name="adminNotes" rows="6" ${permissions.canEditAdminNotes ? "" : "disabled"}>${escapeHtml(task.adminNotes)}</textarea>
+      </div>
+      <div class="field field--wide">
+        <span>Σημειώσεις Συνεργάτη</span>
+        <textarea name="partnerNotes" rows="6" ${permissions.canEditPartnerNotes ? "" : "disabled"}>${escapeHtml(task.partnerNotes)}</textarea>
       </div>
       ${
-        permissions.canEditCore || permissions.canEditNotes || permissions.canManageAssignment
+        permissions.canEditCore || permissions.canEditAdminNotes || permissions.canEditPartnerNotes || permissions.canManageAssignment
           ? `<div class="form-actions"><button class="button" type="submit">Αποθήκευση αλλαγών</button></div>`
           : ""
       }
@@ -352,34 +359,128 @@ function renderMaterialsTab(task, permissions, inventory, materialSearch, select
   `;
 }
 
-function renderFloorsTab(task) {
+function renderWorkItemsTab(task, permissions, workCatalog, workSearch, selectedWorkId, selectedWork) {
+  const workOptions = workCatalog || [];
+  const hasSearch = Boolean((workSearch || "").trim());
+  const resultCount = workOptions.length;
+
   return `
     <section class="tab-panel">
       <div class="tab-panel__head">
         <div>
-          <h3>Floors / Δομή κτιρίου</h3>
-          <p>Δομημένη αποτύπωση ορόφων, μονάδων και σημείων πρόσβασης.</p>
+          <h3>Εργασίες</h3>
+          <p>Καταγραφή άρθρων εργασίας από το δεύτερο sheet &quot;ΕΡΓΑΣΙΕΣ&quot; του Excel με γρήγορη αναζήτηση.</p>
         </div>
       </div>
 
-      <div class="floor-grid">
-        ${task.floors
-          .map(
-            (floor) => `
-              <article class="floor-card">
-                <div class="floor-card__head">
-                  <span class="floor-card__icon">${icon("building")}</span>
-                  <strong>${escapeHtml(floor.level)}</strong>
+      <div class="filter-bar filter-bar--materials">
+        <label class="field">
+          <span>Αναζήτηση άρθρου / εργασίας</span>
+          <input
+            type="search"
+            value="${escapeHtml(workSearch || "")}"
+            placeholder="Άρθρο ή περιγραφή εργασίας..."
+            data-work-search
+          />
+        </label>
+      </div>
+
+      <div class="material-picker">
+        ${
+          selectedWork
+            ? `
+              <article class="material-selected-card">
+                <div>
+                  <p class="eyebrow">Επιλεγμένη εργασία</p>
+                  <strong>${escapeHtml(selectedWork.article)} · ${escapeHtml(selectedWork.description)}</strong>
                 </div>
-                <dl>
-                  <div><dt>Μονάδες</dt><dd>${escapeHtml(floor.units)}</dd></div>
-                  <div><dt>Πρόσβαση</dt><dd>${escapeHtml(floor.access)}</dd></div>
-                  <div><dt>Riser</dt><dd>${escapeHtml(floor.riser)}</dd></div>
-                </dl>
               </article>
             `
-          )
-          .join("")}
+            : `
+              <div class="material-picker__meta">
+                <strong>${resultCount}</strong>
+                <span>${hasSearch ? "εργασίες που ταιριάζουν" : "συνολικά άρθρα εργασιών από το catalog"}</span>
+              </div>
+              <div class="material-picker__results">
+                ${
+                  workOptions.length
+                    ? workOptions
+                        .map(
+                          (item) => `
+                            <button
+                              class="material-result"
+                              type="button"
+                              data-select-work="${escapeHtml(item.id)}"
+                            >
+                              <strong>${escapeHtml(item.article)}</strong>
+                              <span>${escapeHtml(item.description)}</span>
+                            </button>
+                          `
+                        )
+                        .join("")
+                    : hasSearch
+                      ? `<div class="empty-state"><p>Δεν βρέθηκε άρθρο εργασίας για το τρέχον search.</p></div>`
+                      : `<div class="empty-state"><p>Γράψε άρθρο ή περιγραφή για να εμφανιστούν εργασίες.</p></div>`
+                }
+              </div>
+            `
+        }
+      </div>
+
+      ${
+        permissions.canAddWorkItems
+          ? `
+            <form class="inline-form inline-form--materials" data-work-form="${escapeHtml(task.id)}">
+              <input type="hidden" name="catalogId" value="${escapeHtml(selectedWorkId || "")}" />
+              <div class="material-selected-shell">
+                ${
+                  selectedWork
+                    ? `
+                      <div class="material-selected-shell__value">
+                        ${escapeHtml(selectedWork.article)} · ${escapeHtml(selectedWork.description)}
+                      </div>
+                    `
+                    : `<div class="material-selected-shell__placeholder">Επίλεξε πρώτα άρθρο - εργασία από τα αποτελέσματα αναζήτησης</div>`
+                }
+              </div>
+              <button class="button button--secondary" type="submit" ${selectedWork ? "" : "disabled"}>Προσθήκη</button>
+            </form>
+          `
+          : ""
+      }
+
+      <div class="inventory-inline-note">
+        <strong>Catalog source</strong>
+        <span>Το catalog έρχεται από το δεύτερο sheet &quot;ΕΡΓΑΣΙΕΣ&quot; του Excel και χρησιμοποιείται για επιλογή άρθρου - εργασίας.</span>
+      </div>
+
+      <div class="table-wrap table-wrap--dense">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Άρθρο</th>
+              <th>Εργασία</th>
+              <th>Πηγή</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              task.workItems.length
+                ? task.workItems
+                    .map(
+                      (workItem) => `
+                        <tr>
+                          <td>${escapeHtml(workItem.article)}</td>
+                          <td>${escapeHtml(workItem.description)}</td>
+                          <td>${workItem.catalogId ? "Excel / Εργασίες" : "Χειροκίνητη / legacy εγγραφή"}</td>
+                        </tr>
+                      `
+                    )
+                    .join("")
+                : `<tr><td colspan="3">Δεν έχουν δηλωθεί άρθρα εργασιών.</td></tr>`
+            }
+          </tbody>
+        </table>
       </div>
     </section>
   `;
@@ -490,7 +591,19 @@ function renderSystemTab(task, permissions) {
   `;
 }
 
-function renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial) {
+function renderTabContent(
+  task,
+  activeTab,
+  permissions,
+  inventory,
+  materialSearch,
+  selectedMaterialId,
+  selectedMaterial,
+  workCatalog,
+  workSearch,
+  selectedWorkId,
+  selectedWork
+) {
   switch (activeTab) {
     case "photos":
       return PhotoUploader(task, permissions);
@@ -498,8 +611,8 @@ function renderTabContent(task, activeTab, permissions, inventory, materialSearc
       return renderFilesTab(task, permissions);
     case "materials":
       return renderMaterialsTab(task, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial);
-    case "floors":
-      return renderFloorsTab(task);
+    case "work-items":
+      return renderWorkItemsTab(task, permissions, workCatalog, workSearch, selectedWorkId, selectedWork);
     case "safety":
       return renderSafetyTab(task, permissions);
     case "history":
@@ -627,6 +740,10 @@ export function TaskDetail({
   materialSearch,
   selectedMaterialId,
   selectedMaterial,
+  workCatalog,
+  workSearch,
+  selectedWorkId,
+  selectedWork,
   currentRoleLabel,
   currentUserName,
   validationComment,
@@ -657,7 +774,7 @@ export function TaskDetail({
     ["photos", "Φωτογραφίες"],
     ["files", "Αρχεία"],
     ["materials", "Υλικά"],
-    ["floors", "Floors"],
+    ["work-items", "Εργασίες"],
     ["safety", "Health & Safety"],
     ["history", "Ιστορία"],
     ["system", "Σύστημα"]
@@ -725,7 +842,19 @@ export function TaskDetail({
               .join("")}
           </div>
 
-          ${renderTabContent(task, activeTab, permissions, inventory, materialSearch, selectedMaterialId, selectedMaterial)}
+          ${renderTabContent(
+            task,
+            activeTab,
+            permissions,
+            inventory,
+            materialSearch,
+            selectedMaterialId,
+            selectedMaterial,
+            workCatalog,
+            workSearch,
+            selectedWorkId,
+            selectedWork
+          )}
         </div>
 
         <aside class="detail-side surface">
@@ -760,6 +889,7 @@ export function TaskDetail({
             <div class="stat-line"><span>Φωτογραφίες</span><strong>${task.photos.length}</strong></div>
             <div class="stat-line"><span>Αρχεία</span><strong>${task.files.length}</strong></div>
             <div class="stat-line"><span>Υλικά</span><strong>${task.materials.length}</strong></div>
+            <div class="stat-line"><span>Εργασίες</span><strong>${task.workItems.length}</strong></div>
           </div>
         </aside>
       </div>
