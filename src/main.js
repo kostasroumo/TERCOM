@@ -133,6 +133,7 @@ function normalizeTask(task) {
       validationLock: !!task.flags?.validationLock,
       openIssues: !!task.flags?.openIssues,
       smartReadiness: task.flags?.smartReadiness || "Σε αναμονή",
+      pendingDocumentReason: task.flags?.pendingDocumentReason || "",
       cancellationRequested: !!task.flags?.cancellationRequested,
       cancellationRequestedAt: task.flags?.cancellationRequestedAt || "",
       cancellationRequestedBy: task.flags?.cancellationRequestedBy || "",
@@ -234,6 +235,22 @@ function hasRequiredAutopsiaCertificate(task) {
   });
 }
 
+function getMissingRequiredDocumentsReason(task) {
+  if (task.pipeline === "autopsia" && !hasRequiredAutopsiaCertificate(task)) {
+    return "Η αυτοψία ολοκληρώθηκε, αλλά λείπει το απαιτούμενο πιστοποιητικό για να προχωρήσει σε επικύρωση.";
+  }
+
+  if (task.pipeline === "leitourgies_inwn" && isLeitourgiesFinalStage(task) && !task.files.length) {
+    return `Το στάδιο ${getCurrentLeitourgiesStageMeta(task)?.label || "Επιμέτρηση με email"} ολοκληρώθηκε, αλλά λείπουν τα απαιτούμενα έγγραφα για να προχωρήσει σε επικύρωση.`;
+  }
+
+  if (task.pipeline === "syntirisi_loipes" && !task.files.length) {
+    return "Η εργασία ολοκληρώθηκε, αλλά λείπουν τα απαιτούμενα έγγραφα για να προχωρήσει σε επικύρωση.";
+  }
+
+  return "";
+}
+
 function getLeitourgiesStageFlow(task) {
   return getLeitourgiesInwnStageFlow(task.serviceProvider);
 }
@@ -293,9 +310,7 @@ function getPermissions(task) {
     canEditSafety: isAdmin || isAssignedPartner,
     canScheduleVisit: isAssignedPartner && ["assigned", "scheduled"].includes(task.status),
     canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
-    canSubmitValidation:
-      (isAdmin || isAssignedPartner) &&
-      (task.status === "in_progress" || (task.pipeline === "autopsia" && task.status === "completed_with_pending")),
+    canSubmitValidation: (isAdmin || isAssignedPartner) && ["in_progress", "completed_with_pending"].includes(task.status),
     canApprove: isAdmin && task.status === "pending_validation",
     canReject: isAdmin && task.status === "pending_validation",
     canRequestCancellation: isAssignedPartner && task.status === "in_progress" && !task.flags.cancellationRequested,
@@ -1129,7 +1144,8 @@ function createTaskFromForm(formData) {
       cancellationRequested: false,
       cancellationRequestedAt: "",
       cancellationRequestedBy: "",
-      cancellationReason: ""
+      cancellationReason: "",
+      pendingDocumentReason: ""
     },
     photos: [],
     files: [],
@@ -1355,21 +1371,24 @@ function handleWorkflow(taskId, action) {
       return;
     }
 
-    if (task.pipeline === "autopsia" && !hasRequiredAutopsiaCertificate(task)) {
+    const missingDocumentsReason = getMissingRequiredDocumentsReason(task);
+
+    if (missingDocumentsReason) {
       commitTaskChange(
         taskId,
         (nextTask) => {
           nextTask.status = "completed_with_pending";
           nextTask.flags.validationLock = false;
           nextTask.flags.openIssues = true;
+          nextTask.flags.pendingDocumentReason = missingDocumentsReason;
           if (!nextTask.endDate) {
             nextTask.endDate = new Date().toISOString().slice(0, 16);
           }
         },
         "Ολοκλήρωση με εκκρεμότητα",
-        "Η αυτοψία ολοκληρώθηκε αλλά λείπει το απαιτούμενο πιστοποιητικό, οπότε η εργασία παραμένει σε εκκρεμότητα."
+        missingDocumentsReason
       );
-      window.alert("Λείπει το απαιτούμενο πιστοποιητικό. Η εργασία μεταφέρθηκε σε 'Ολοκληρωμένο με εκκρεμότητα'.");
+      window.alert("Λείπουν τα απαιτούμενα έγγραφα. Η εργασία μεταφέρθηκε σε 'Ολοκληρωμένο με εκκρεμότητα'.");
       return;
     }
 
@@ -1427,6 +1446,7 @@ function handleWorkflow(taskId, action) {
         task.status = "pending_validation";
         task.flags.validationLock = true;
         task.flags.openIssues = false;
+        task.flags.pendingDocumentReason = "";
         if (!task.endDate) {
           task.endDate = new Date().toISOString().slice(0, 16);
         }
@@ -1521,6 +1541,7 @@ function handleWorkflow(taskId, action) {
           }
           nextTask.flags.validationLock = false;
           nextTask.flags.openIssues = false;
+          nextTask.flags.pendingDocumentReason = "";
           nextTask.flags.cancellationRequested = false;
           nextTask.flags.cancellationRequestedAt = "";
           nextTask.flags.cancellationRequestedBy = "";
@@ -1542,6 +1563,7 @@ function handleWorkflow(taskId, action) {
         task.status = "completed";
         task.flags.validationLock = false;
         task.flags.openIssues = false;
+        task.flags.pendingDocumentReason = "";
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
@@ -1570,6 +1592,7 @@ function handleWorkflow(taskId, action) {
         task.completedAt = "";
         task.flags.validationLock = false;
         task.flags.openIssues = false;
+        task.flags.pendingDocumentReason = "";
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
@@ -1597,6 +1620,7 @@ function handleWorkflow(taskId, action) {
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
         task.flags.cancellationReason = "";
+        task.flags.pendingDocumentReason = "";
       },
       "Απόρριψη αιτήματος ακύρωσης",
       validationComment || "Ο admin απέρριψε το αίτημα ακύρωσης και η εργασία συνεχίζεται."
@@ -1619,6 +1643,7 @@ function handleWorkflow(taskId, action) {
         task.status = "in_progress";
         task.flags.validationLock = false;
         task.flags.openIssues = true;
+        task.flags.pendingDocumentReason = "";
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";

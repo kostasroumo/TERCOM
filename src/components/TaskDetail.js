@@ -515,11 +515,13 @@ function renderTabContent(task, activeTab, permissions, inventory, materialSearc
 function renderWorkflowActions(task, permissions, validationComment, cancellationComment) {
   let submitValidationLabel = task.status === "completed_with_pending" ? "Επανυποβολή για επικύρωση" : "Αποστολή για επικύρωση";
 
-  if (task.pipeline === "leitourgies_inwn") {
+  if (task.pipeline === "leitourgies_inwn" && task.status !== "completed_with_pending") {
     const fiberStageMeta = getCurrentFiberStageMeta(task);
     submitValidationLabel = isFiberFinalStage(task)
       ? "Αποστολή τελικού σταδίου για επικύρωση"
       : `Ολοκλήρωση σταδίου ${fiberStageMeta?.label || ""}`;
+  } else if (task.pipeline === "leitourgies_inwn" && task.status === "completed_with_pending" && isFiberFinalStage(task)) {
+    submitValidationLabel = "Επανυποβολή τελικού σταδίου για επικύρωση";
   }
 
   const workflowCopy =
@@ -533,11 +535,11 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
       <p class="muted">${escapeHtml(workflowCopy)}</p>
 
       ${
-        task.pipeline === "autopsia" && task.status === "completed_with_pending"
+        task.status === "completed_with_pending"
           ? `
             <div class="alert-banner alert-banner--warning">
               <strong>Ολοκλήρωση με εκκρεμότητα</strong>
-              <p>Η αυτοψία έγινε, αλλά λείπει το απαιτούμενο πιστοποιητικό για να προχωρήσει σε επικύρωση.</p>
+              <p>${escapeHtml(task.flags.pendingDocumentReason || "Η εργασία ολοκληρώθηκε, αλλά λείπουν τα απαιτούμενα έγγραφα για να προχωρήσει σε επικύρωση.")}</p>
             </div>
           `
           : ""
