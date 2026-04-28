@@ -1,4 +1,5 @@
 import {
+  ASSIGNEE_OPTIONS,
   getDefaultLeitourgiesInwnStage,
   getLeitourgiesInwnStageFlow,
   LEITOURGIES_INWN_STAGE_META,
@@ -9,7 +10,6 @@ import {
   STATUS_META,
   STATUS_OPTIONS_ORDER,
   STATUS_ORDER,
-  TECHNICIANS
 } from "../data/mockData.js";
 import { escapeHtml, formatCompactDateTime, formatDateTime, formatElapsedDays, formatFileSize, icon } from "../lib/helpers.js";
 import { HistoryTimeline } from "./HistoryTimeline.js";
@@ -112,7 +112,13 @@ function renderMainTab(task, permissions) {
       </div>
       <div class="field">
         <span>Πόρος / Team</span>
-        <input name="resourceTeam" value="${escapeHtml(task.resourceTeam)}" ${permissions.canEditCore ? "" : "disabled"} />
+        <select name="resourceTeam" ${permissions.canEditCore ? "" : "disabled"}>
+          <option value="">Δεν ορίστηκε</option>
+          ${ASSIGNEE_OPTIONS.map(
+            (assignee) =>
+              `<option value="${assignee.id}"${task.resourceTeam === assignee.name ? " selected" : ""}>${escapeHtml(assignee.name)}</option>`
+          ).join("")}
+        </select>
       </div>
       <div class="field">
         <span>Πάροχος</span>
@@ -123,10 +129,10 @@ function renderMainTab(task, permissions) {
         </select>
       </div>
       <div class="field">
-        <span>Ανατέθηκε σε συνεργάτη</span>
+        <span>Ανατέθηκε σε</span>
         <select name="assignedUserId" ${permissions.canManageAssignment ? "" : "disabled"}>
           <option value="">Δεν έχει ανατεθεί</option>
-          ${TECHNICIANS.map(
+          ${ASSIGNEE_OPTIONS.map(
             (technician) => `<option value="${technician.id}"${task.assignedUserId === technician.id ? " selected" : ""}>${escapeHtml(technician.name)}</option>`
           ).join("")}
         </select>
@@ -873,7 +879,7 @@ export function TaskDetail({
               }
               <div><dt>Πελάτης</dt><dd>${escapeHtml(task.customerName || "-")}</dd></div>
               <div><dt>Team</dt><dd>${escapeHtml(task.resourceTeam)}</dd></div>
-              <div><dt>Partner</dt><dd>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</dd></div>
+              <div><dt>Ανατέθηκε σε</dt><dd>${escapeHtml(task.assignedUserName || "Δεν έχει ανατεθεί")}</dd></div>
               ${createdTimingSpec}
               ${assignmentTimingSpec}
               <div><dt>Window</dt><dd>${task.startDate ? formatCompactDateTime(task.startDate) : "Δεν ορίστηκε"}</dd></div>

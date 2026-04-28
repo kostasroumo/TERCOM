@@ -47,7 +47,7 @@ export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
         </label>
 
         <label class="field">
-          <span>Συνεργάτης</span>
+          <span>Ανάθεση</span>
           <select data-filter="technician">
             <option value="all"${filters.technician === "all" ? " selected" : ""}>Όλοι</option>
             <option value="unassigned"${filters.technician === "unassigned" ? " selected" : ""}>Χωρίς ανάθεση</option>

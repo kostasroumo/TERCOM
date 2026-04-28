@@ -150,6 +150,13 @@ function normalizeTask(task) {
   const serviceProvider = task.serviceProvider || "other";
   const isLeitourgiesTask = (task.pipeline || "autopsia") === "leitourgies_inwn";
   const assignedUser = getAssignableUserById(task.assignedUserId);
+  const assignableNames = new Set(getAssignableUsers().map((user) => user.name));
+  const normalizedLegacyTeam = normalizeLegacyUserName(task.resourceTeam);
+  const normalizedResourceTeam = assignableNames.has(task.resourceTeam)
+    ? task.resourceTeam
+    : assignableNames.has(normalizedLegacyTeam)
+      ? normalizedLegacyTeam
+      : assignedUser?.name || "";
 
   return {
     ...task,
@@ -160,6 +167,7 @@ function normalizeTask(task) {
     customerName: task.customerName || "",
     mobilePhone: task.mobilePhone || "",
     landlinePhone: task.landlinePhone || "",
+    resourceTeam: normalizedResourceTeam,
     srId: task.srId || task.projectId || "",
     bid: task.bid || task.serviceRequestId || "",
     assignedAt: task.assignedAt || (task.assignedUserId ? task.startDate || task.createdAt || "" : ""),
@@ -493,7 +501,7 @@ function renderAdminDashboard(visibleTasks) {
     ...getAssignableUsers().map((assignee) => ({
       id: assignee.id,
       label: assignee.name,
-      copy: "Επισκόπηση pipelines και queues για τον συγκεκριμένο συνεργάτη.",
+      copy: "Επισκόπηση pipelines και queues για τον συγκεκριμένο υπεύθυνο ανάθεσης.",
       tasks: visibleTasks.filter((task) => task.assignedUserId === assignee.id)
     })),
     {
@@ -577,7 +585,7 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
                     <button class="queue-item" data-open-task="${escapeHtml(task.id)}">
                       <strong>${escapeHtml(task.title)}</strong>
                       <span>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
-                      <span>${escapeHtml(task.assignedUserName || "Χωρίς συνεργάτη")} · ${escapeHtml(STATUS_META[task.status]?.label || task.status)}</span>
+                      <span>${escapeHtml(task.assignedUserName || "Χωρίς ανάθεση")} · ${escapeHtml(STATUS_META[task.status]?.label || task.status)}</span>
                     </button>
                   `
                 )
@@ -903,9 +911,9 @@ function renderCreateModal() {
             <input name="bid" required />
           </div>
           <div class="field">
-            <span>Team</span>
-            <select name="resourceTeam" required>
-              <option value="">Επίλεξε team / συνεργάτη</option>
+            <span>Team / Άμεση ανάθεση</span>
+            <select name="resourceTeam">
+              <option value="">Χωρίς άμεση ανάθεση</option>
               ${getAssignableUsers()
                 .map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)}</option>`)
                 .join("")}
@@ -1247,13 +1255,16 @@ function createTaskFromForm(formData) {
   const startDate = formData.get("startDate");
   const createdAt = new Date().toISOString();
   const pipeline = formData.get("pipeline") || "autopsia";
+  const selectedTeamId = formData.get("resourceTeam") || "";
+  const selectedTeamUser = getAssignableUserById(selectedTeamId);
+  const hasDirectAssignment = !!selectedTeamUser;
 
   const newTask = {
     id: createId("TASK"),
     title: formData.get("title"),
     type: inferTaskTypeFromPipeline(pipeline),
     pipeline,
-    status: "unassigned",
+    status: hasDirectAssignment ? "assigned" : "unassigned",
     serviceProvider: formData.get("serviceProvider") || "other",
     address: formData.get("address"),
     city: formData.get("city"),
@@ -1263,11 +1274,11 @@ function createTaskFromForm(formData) {
     srId: formData.get("srId"),
     bid: formData.get("bid"),
     projectName: formData.get("projectName"),
-    resourceTeam: formData.get("resourceTeam"),
-    assignedAt: "",
+    resourceTeam: selectedTeamUser?.name || "",
+    assignedAt: hasDirectAssignment ? createdAt : "",
     completedAt: "",
-    assignedUserId: "",
-    assignedUserName: "",
+    assignedUserId: selectedTeamUser?.id || "",
+    assignedUserName: selectedTeamUser?.name || "",
     startDate,
     endDate: "",
     adminNotes: formData.get("adminNotes"),
@@ -1295,7 +1306,9 @@ function createTaskFromForm(formData) {
         author: currentUser.name,
         at: createdAt,
         summary: "Δημιουργία εργασίας",
-        details: "Η εργασία δημιουργήθηκε και περιμένει ανάθεση από τον admin."
+        details: hasDirectAssignment
+          ? `Η εργασία δημιουργήθηκε και ανατέθηκε απευθείας στον ${selectedTeamUser.name}.`
+          : "Η εργασία δημιουργήθηκε και περιμένει ανάθεση από τον admin."
       }
     ],
     pipelineHistory: [],
@@ -1317,7 +1330,7 @@ function createTaskFromForm(formData) {
 function updateTaskCore(taskId, formData) {
   const nextValues = Object.fromEntries(formData.entries());
   const assignedUserId = nextValues.assignedUserId || "";
-  const assignedUser = TECHNICIANS.find((user) => user.id === assignedUserId);
+  const assignedUser = getAssignableUserById(assignedUserId);
   const isPartnerEditor = state.currentRole === "partner";
 
   commitTaskChange(
@@ -1384,7 +1397,8 @@ function updateTaskCore(taskId, formData) {
       }
 
       if (nextValues.resourceTeam !== undefined) {
-        task.resourceTeam = nextValues.resourceTeam;
+        const selectedTeamUser = getAssignableUserById(nextValues.resourceTeam);
+        task.resourceTeam = selectedTeamUser?.name || nextValues.resourceTeam || "";
       }
 
       if (nextValues.address !== undefined) {
