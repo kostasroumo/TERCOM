@@ -99,6 +99,17 @@ function saveState() {
   }
 }
 
+function resetUiStateForLiveSession() {
+  state.ui.showCreateModal = false;
+  state.ui.activeTab = "main";
+  state.ui.validationComment = "";
+  state.ui.cancellationComment = "";
+  state.ui.materialSearch = "";
+  state.ui.selectedMaterialId = "";
+  state.ui.workSearch = "";
+  state.ui.selectedWorkId = "";
+}
+
 function withTimeout(promise, ms, label) {
   return Promise.race([
     promise,
@@ -132,6 +143,10 @@ async function bootstrap() {
         } else {
           runtime.profile = null;
           runtime.profiles = [];
+          state.currentRole = "admin";
+          state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
+          resetUiStateForLiveSession();
+          saveState();
         }
 
         runtime.loading = false;
@@ -1244,7 +1259,10 @@ function handleClick(event) {
 
   if (event.target.closest("[data-sign-out]")) {
     if (isSupabaseMode() && runtime.supabase) {
+      runtime.loading = true;
+      render();
       signOutSession(runtime.supabase).catch((error) => {
+        runtime.loading = false;
         runtime.authError = error.message;
         render();
       });
@@ -1451,14 +1469,27 @@ function handleSubmit(event) {
     event.preventDefault();
     const formData = new FormData(loginForm);
     runtime.authError = "";
+    runtime.syncError = "";
+    runtime.loading = true;
+    render();
+
     signInWithPassword(
       runtime.supabase,
       String(formData.get("email") || ""),
       String(formData.get("password") || "")
-    ).catch((error) => {
-      runtime.authError = error.message;
-      render();
-    });
+    )
+      .then(async () => {
+        await withTimeout(loadSupabaseState(), 15000, "Η ανανέωση του προφίλ μετά τη σύνδεση");
+        resetUiStateForLiveSession();
+        saveState();
+        runtime.loading = false;
+        render();
+      })
+      .catch((error) => {
+        runtime.loading = false;
+        runtime.authError = error.message;
+        render();
+      });
     return;
   }
 
