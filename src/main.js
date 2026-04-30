@@ -99,9 +99,20 @@ function saveState() {
   }
 }
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${label} καθυστέρησε υπερβολικά. Κάνε refresh ή ξανασύνδεση.`));
+      }, ms);
+    })
+  ]);
+}
+
 async function bootstrap() {
   try {
-    const config = await loadRuntimeConfig();
+    const config = await withTimeout(loadRuntimeConfig(), 10000, "Η φόρτωση του runtime config");
 
     if (hasSupabaseRuntimeConfig(config)) {
       runtime.mode = "supabase";
@@ -114,7 +125,7 @@ async function bootstrap() {
 
         if (session) {
           try {
-            await loadSupabaseState();
+            await withTimeout(loadSupabaseState(), 15000, "Η φόρτωση των δεδομένων από Supabase");
           } catch (error) {
             runtime.syncError = error.message;
           }
@@ -127,11 +138,11 @@ async function bootstrap() {
         render();
       });
 
-      const { data } = await runtime.supabase.auth.getSession();
+      const { data } = await withTimeout(runtime.supabase.auth.getSession(), 10000, "Ο έλεγχος του Supabase session");
       runtime.session = data.session;
 
       if (runtime.session) {
-        await loadSupabaseState();
+        await withTimeout(loadSupabaseState(), 15000, "Η αρχική φόρτωση των δεδομένων από Supabase");
       }
     }
   } catch (error) {
@@ -211,6 +222,7 @@ function renderAuthGate() {
           ${runtime.syncError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.syncError)}</p></div>` : ""}
           <div class="form-actions">
             <button class="button" type="submit">Σύνδεση</button>
+            ${runtime.syncError ? `<button class="button button--ghost" type="button" data-retry-bootstrap>Ξανά προσπάθεια</button>` : ""}
           </div>
         </form>
       </section>
@@ -1237,6 +1249,14 @@ function handleClick(event) {
         render();
       });
     }
+    return;
+  }
+
+  if (event.target.closest("[data-retry-bootstrap]")) {
+    runtime.loading = true;
+    runtime.syncError = "";
+    render();
+    bootstrap();
     return;
   }
 
