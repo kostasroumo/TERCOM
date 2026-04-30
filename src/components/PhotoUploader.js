@@ -38,7 +38,11 @@ export function PhotoUploader(task, permissions) {
                 .map(
                   (photo) => `
                     <article class="photo-card">
-                      <img src="${escapeHtml(photo.preview)}" alt="${escapeHtml(photo.name)}" />
+                      ${
+                        photo.preview
+                          ? `<a href="${escapeHtml(photo.preview)}" target="_blank" rel="noreferrer"><img src="${escapeHtml(photo.preview)}" alt="${escapeHtml(photo.name)}" /></a>`
+                          : `<div class="empty-state"><p>Δεν υπάρχει preview</p></div>`
+                      }
                       <div class="photo-card__meta">
                         <div>
                           <strong>${escapeHtml(photo.name)}</strong>

@@ -29,6 +29,21 @@ function sendFile(res, filePath) {
 
 const server = http.createServer((req, res) => {
   const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+
+  if (requestUrl.pathname === "/.netlify/functions/public-config") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
+    });
+    res.end(
+      JSON.stringify({
+        supabaseUrl: process.env.SUPABASE_URL || "",
+        supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || ""
+      })
+    );
+    return;
+  }
+
   const requestedPath = decodeURIComponent(requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname);
   const normalizedPath = path.normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
   let filePath = path.join(rootDir, normalizedPath);

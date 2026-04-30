@@ -17,11 +17,35 @@ import {
   STATUS_ORDER,
   USER_DIRECTORY
 } from "./data/mockData.js";
-import { countByStatus, createId, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
+import { countByStatus, createId, createUuid, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
+import { hasSupabaseRuntimeConfig, loadRuntimeConfig } from "./lib/runtimeConfig.js";
+import {
+  createSupabaseBrowserClient,
+  fetchSupabaseBootstrapData,
+  persistTaskToSupabase,
+  signInWithPassword,
+  signOutSession,
+  uploadTaskFiles,
+  uploadTaskPhotos
+} from "./lib/supabaseBackend.js";
 
 const STORAGE_KEY = "birol-field-ops-prototype-v11";
 const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
 const app = document.querySelector("#app");
+
+const runtime = {
+  mode: "local",
+  config: null,
+  supabase: null,
+  loading: true,
+  session: null,
+  profile: null,
+  profiles: [],
+  workCatalog: [...WORK_CATALOG_SEED],
+  authError: "",
+  syncError: "",
+  syncQueue: Promise.resolve()
+};
 
 let state = loadState();
 
@@ -35,7 +59,7 @@ document.addEventListener("change", handleChange);
 document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
 
-render();
+bootstrap();
 
 function loadState() {
   try {
@@ -75,6 +99,149 @@ function saveState() {
   }
 }
 
+async function bootstrap() {
+  try {
+    const config = await loadRuntimeConfig();
+
+    if (hasSupabaseRuntimeConfig(config)) {
+      runtime.mode = "supabase";
+      runtime.config = config;
+      runtime.supabase = createSupabaseBrowserClient(config);
+
+      runtime.supabase.auth.onAuthStateChange(async (_event, session) => {
+        runtime.session = session;
+        runtime.authError = "";
+
+        if (session) {
+          try {
+            await loadSupabaseState();
+          } catch (error) {
+            runtime.syncError = error.message;
+          }
+        } else {
+          runtime.profile = null;
+          runtime.profiles = [];
+        }
+
+        runtime.loading = false;
+        render();
+      });
+
+      const { data } = await runtime.supabase.auth.getSession();
+      runtime.session = data.session;
+
+      if (runtime.session) {
+        await loadSupabaseState();
+      }
+    }
+  } catch (error) {
+    runtime.syncError = error.message;
+  } finally {
+    runtime.loading = false;
+    render();
+  }
+}
+
+async function loadSupabaseState() {
+  const payload = await fetchSupabaseBootstrapData(runtime.supabase);
+
+  runtime.session = payload.session;
+  runtime.profile = payload.profile;
+  runtime.profiles = payload.profiles;
+  runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
+  state.tasks = payload.tasks.map(normalizeTask);
+  state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
+  state.currentRole = payload.profile?.role || "partner";
+  state.currentUserId = payload.profile?.id || "";
+  state.ui.showCreateModal = false;
+  state.ui.validationComment = "";
+  state.ui.cancellationComment = "";
+  if (
+    state.currentRole === "admin" &&
+    state.ui.expandedAdminAssignee !== "unassigned" &&
+    !payload.profiles.some((profile) => profile.id === state.ui.expandedAdminAssignee)
+  ) {
+    state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
+  }
+  saveState();
+}
+
+function isSupabaseMode() {
+  return runtime.mode === "supabase";
+}
+
+function isAuthenticated() {
+  return !!runtime.session && !!runtime.profile;
+}
+
+function getRuntimeAssignableProfiles() {
+  return (runtime.profiles || []).filter((profile) => profile.isActive !== false);
+}
+
+function renderAuthGate() {
+  if (runtime.loading) {
+    app.innerHTML = `
+      <section class="auth-screen">
+        <div class="surface auth-card">
+          <p class="eyebrow">Supabase</p>
+          <h1>Φόρτωση περιβάλλοντος</h1>
+          <p>Ετοιμάζουμε τη σύνδεση με τη βάση δεδομένων.</p>
+        </div>
+      </section>
+    `;
+    return true;
+  }
+
+  if (isSupabaseMode() && !isAuthenticated()) {
+    app.innerHTML = `
+      <section class="auth-screen">
+        <form class="surface auth-card" data-login-form>
+          <p class="eyebrow">TERCOM Access</p>
+          <h1>Σύνδεση στο σύστημα</h1>
+          <p>Χρησιμοποίησε τον λογαριασμό Supabase που δημιούργησες για να μπεις στο live περιβάλλον.</p>
+          <label class="field">
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span>Κωδικός</span>
+            <input type="password" name="password" autocomplete="current-password" required />
+          </label>
+          ${runtime.authError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.authError)}</p></div>` : ""}
+          ${runtime.syncError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.syncError)}</p></div>` : ""}
+          <div class="form-actions">
+            <button class="button" type="submit">Σύνδεση</button>
+          </div>
+        </form>
+      </section>
+    `;
+    return true;
+  }
+
+  return false;
+}
+
+async function queueSupabaseTaskSync(nextTask, previousTask, newHistoryEntry = null) {
+  if (!isSupabaseMode() || !isAuthenticated()) {
+    return;
+  }
+
+  runtime.syncQueue = runtime.syncQueue
+    .then(async () => {
+      await persistTaskToSupabase(runtime.supabase, nextTask, previousTask, {
+        currentUserId: runtime.profile?.id || "",
+        newHistoryEntry
+      });
+      runtime.syncError = "";
+    })
+    .catch((error) => {
+      runtime.syncError = error.message;
+      render();
+    });
+
+  await runtime.syncQueue;
+}
+
 function confirmAction(message) {
   return window.confirm(message);
 }
@@ -105,10 +272,18 @@ function getRoute() {
 }
 
 function getCurrentRoleUsers() {
+  if (isSupabaseMode() && isAuthenticated()) {
+    return getRuntimeAssignableProfiles().filter((profile) => profile.role === state.currentRole);
+  }
+
   return USER_DIRECTORY[state.currentRole];
 }
 
 function getCurrentUser() {
+  if (isSupabaseMode() && isAuthenticated()) {
+    return runtime.profile;
+  }
+
   return getCurrentRoleUsers().find((user) => user.id === state.currentUserId) || getCurrentRoleUsers()[0];
 }
 
@@ -125,6 +300,10 @@ function inferTaskTypeFromPipeline(pipelineKey) {
 }
 
 function getAssignableUsers() {
+  if (isSupabaseMode() && isAuthenticated()) {
+    return getRuntimeAssignableProfiles();
+  }
+
   return ASSIGNEE_OPTIONS;
 }
 
@@ -160,6 +339,7 @@ function normalizeTask(task) {
 
   return {
     ...task,
+    taskCode: task.taskCode || task.id,
     pipeline: task.pipeline || "autopsia",
     serviceProvider,
     adminNotes: task.adminNotes ?? task.notes ?? "",
@@ -173,7 +353,9 @@ function normalizeTask(task) {
     assignedAt: task.assignedAt || (task.assignedUserId ? task.startDate || task.createdAt || "" : ""),
     completedAt: task.completedAt || (task.status === "completed" ? task.endDate || task.updatedAt || "" : ""),
     createdBy: normalizeLegacyUserName(task.createdBy),
+    createdById: task.createdById || "",
     updatedBy: normalizeLegacyUserName(task.updatedBy),
+    updatedById: task.updatedById || "",
     flags: {
       apiStatus: task.flags?.apiStatus || "LOCAL-ONLY",
       validationLock: !!task.flags?.validationLock,
@@ -183,6 +365,7 @@ function normalizeTask(task) {
       cancellationRequested: !!task.flags?.cancellationRequested,
       cancellationRequestedAt: task.flags?.cancellationRequestedAt || "",
       cancellationRequestedBy: task.flags?.cancellationRequestedBy || "",
+      cancellationRequestedById: task.flags?.cancellationRequestedById || "",
       cancellationReason: task.flags?.cancellationReason || ""
     },
     assignedUserId: task.assignedUserId || "",
@@ -190,22 +373,44 @@ function normalizeTask(task) {
     pipelineHistory: Array.isArray(task.pipelineHistory) ? task.pipelineHistory : [],
     fiberStageKey: isLeitourgiesTask ? task.fiberStageKey || getDefaultLeitourgiesInwnStage(serviceProvider) : task.fiberStageKey || "",
     fiberStageHistory: Array.isArray(task.fiberStageHistory) ? task.fiberStageHistory : [],
-    workItems: Array.isArray(task.workItems) ? task.workItems : [],
     photos: Array.isArray(task.photos)
       ? task.photos.map((photo) => ({
           ...photo,
+          uploadedById: photo.uploadedById || "",
           uploadedBy: normalizeLegacyUserName(photo.uploadedBy)
         }))
       : [],
     files: Array.isArray(task.files)
       ? task.files.map((file) => ({
           ...file,
+          uploadedById: file.uploadedById || "",
           uploadedBy: normalizeLegacyUserName(file.uploadedBy)
+        }))
+      : [],
+    materials: Array.isArray(task.materials)
+      ? task.materials.map((material) => ({
+          ...material,
+          createdById: material.createdById || ""
+        }))
+      : [],
+    workItems: Array.isArray(task.workItems)
+      ? task.workItems.map((workItem) => ({
+          ...workItem,
+          createdById: workItem.createdById || ""
+        }))
+      : [],
+    safety: Array.isArray(task.safety)
+      ? task.safety.map((item, index) => ({
+          ...item,
+          position: Number(item.position ?? index) || index,
+          createdById: item.createdById || "",
+          updatedById: item.updatedById || ""
         }))
       : [],
     history: Array.isArray(task.history)
       ? task.history.map((entry) => ({
           ...entry,
+          authorId: entry.authorId || "",
           author: normalizeLegacyUserName(entry.author)
         }))
       : []
@@ -419,8 +624,9 @@ function getMaterialCatalogRows() {
 
 function getWorkCatalogRows() {
   const search = normalizeMaterialSearchText(state.ui.workSearch || "");
+  const sourceCatalog = runtime.workCatalog?.length ? runtime.workCatalog : WORK_CATALOG_SEED;
 
-  return WORK_CATALOG_SEED.filter((item) => {
+  return sourceCatalog.filter((item) => {
     if (!search) {
       return true;
     }
@@ -599,10 +805,16 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
 }
 
 function render() {
+  if (renderAuthGate()) {
+    return;
+  }
+
   const route = getRoute();
   const visibleTasks = getVisibleTasks();
   const filteredTasks = getFilteredTasks();
   const currentUser = getCurrentUser();
+  const showManualSwitches = !isSupabaseMode();
+  const roleLabel = currentUser?.role ? ROLE_LABELS[currentUser.role] || currentUser.role : ROLE_LABELS[state.currentRole];
 
   app.innerHTML = `
     <div class="app-shell${state.ui.sidebarCollapsed ? " is-sidebar-collapsed" : ""}">
@@ -652,28 +864,46 @@ function render() {
           </div>
 
           <div class="topbar__controls">
-            <label class="field field--compact">
-              <span>Ρόλος</span>
-              <select data-role-switch>
-                ${Object.entries(ROLE_LABELS)
-                  .map(([value, label]) => `<option value="${value}"${state.currentRole === value ? " selected" : ""}>${escapeHtml(label)}</option>`)
-                  .join("")}
-              </select>
-            </label>
+            ${
+              showManualSwitches
+                ? `
+                  <label class="field field--compact">
+                    <span>Ρόλος</span>
+                    <select data-role-switch>
+                      ${Object.entries(ROLE_LABELS)
+                        .map(([value, label]) => `<option value="${value}"${state.currentRole === value ? " selected" : ""}>${escapeHtml(label)}</option>`)
+                        .join("")}
+                    </select>
+                  </label>
 
-            <label class="field field--compact">
-              <span>Χρήστης</span>
-              <select data-user-switch>
-                ${getCurrentRoleUsers()
-                  .map((user) => `<option value="${user.id}"${state.currentUserId === user.id ? " selected" : ""}>${escapeHtml(user.name)}</option>`)
-                  .join("")}
-              </select>
-            </label>
+                  <label class="field field--compact">
+                    <span>Χρήστης</span>
+                    <select data-user-switch>
+                      ${getCurrentRoleUsers()
+                        .map((user) => `<option value="${user.id}"${state.currentUserId === user.id ? " selected" : ""}>${escapeHtml(user.name)}</option>`)
+                        .join("")}
+                    </select>
+                  </label>
+                `
+                : `
+                  <div class="topbar-session">
+                    <span class="pill pill--pipeline-leitourgies-inwn">${escapeHtml(roleLabel)}</span>
+                    <strong>${escapeHtml(currentUser.name)}</strong>
+                  </div>
+                `
+            }
 
             ${canCreateTasks() ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
             <button class="button button--ghost" data-reset-demo>Reset demo</button>
+            ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
           </div>
         </header>
+
+        ${
+          runtime.syncError && isSupabaseMode()
+            ? `<div class="alert-banner alert-banner--warning workspace-alert"><p>${escapeHtml(runtime.syncError)}</p></div>`
+            : ""
+        }
 
         ${renderView(route, visibleTasks, filteredTasks, currentUser)}
       </main>
@@ -731,6 +961,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       task,
       activeTab: state.ui.activeTab,
       permissions: getPermissions(task),
+      assignees: getAssignableUsers(),
       inventory: getMaterialCatalogRows(),
       materialSearch: state.ui.materialSearch,
       selectedMaterialId: state.ui.selectedMaterialId,
@@ -738,7 +969,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       workCatalog: getWorkCatalogRows(),
       workSearch: state.ui.workSearch,
       selectedWorkId: state.ui.selectedWorkId,
-      selectedWork: WORK_CATALOG_SEED.find((item) => item.id === state.ui.selectedWorkId) || null,
+      selectedWork: (runtime.workCatalog?.length ? runtime.workCatalog : WORK_CATALOG_SEED).find((item) => item.id === state.ui.selectedWorkId) || null,
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
       validationComment: state.ui.validationComment,
@@ -784,7 +1015,7 @@ function renderOpenTasksReport(openTasks) {
         <article class="report-card">
           <div class="report-card__head">
             <div>
-              <span class="report-eyebrow">${escapeHtml(task.id)}</span>
+              <span class="report-eyebrow">${escapeHtml(task.taskCode || task.id)}</span>
               <h2>${escapeHtml(task.title)}</h2>
             </div>
             <span class="report-pill">${escapeHtml(statusLabel)}</span>
@@ -999,6 +1230,16 @@ function handleClick(event) {
     return;
   }
 
+  if (event.target.closest("[data-sign-out]")) {
+    if (isSupabaseMode() && runtime.supabase) {
+      signOutSession(runtime.supabase).catch((error) => {
+        runtime.authError = error.message;
+        render();
+      });
+    }
+    return;
+  }
+
   if (event.target.closest("[data-print-report]")) {
     window.print();
     return;
@@ -1078,10 +1319,22 @@ function handleClick(event) {
   }
 
   if (event.target.closest("[data-reset-demo]")) {
-    state = normalizeState(createInitialState());
-    saveState();
-    window.location.hash = "#/dashboard";
-    render();
+    if (isSupabaseMode() && isAuthenticated()) {
+      loadSupabaseState()
+        .then(() => {
+          window.location.hash = "#/dashboard";
+          render();
+        })
+        .catch((error) => {
+          runtime.syncError = error.message;
+          render();
+        });
+    } else {
+      state = normalizeState(createInitialState());
+      saveState();
+      window.location.hash = "#/dashboard";
+      render();
+    }
     return;
   }
 
@@ -1173,6 +1426,22 @@ function handleInput(event) {
 }
 
 function handleSubmit(event) {
+  const loginForm = event.target.closest("[data-login-form]");
+  if (loginForm) {
+    event.preventDefault();
+    const formData = new FormData(loginForm);
+    runtime.authError = "";
+    signInWithPassword(
+      runtime.supabase,
+      String(formData.get("email") || ""),
+      String(formData.get("password") || "")
+    ).catch((error) => {
+      runtime.authError = error.message;
+      render();
+    });
+    return;
+  }
+
   const createForm = event.target.closest("[data-create-task-form]");
   if (createForm) {
     event.preventDefault();
@@ -1227,6 +1496,10 @@ function handleSubmit(event) {
 
 function commitTaskChange(taskId, mutateTask, summary, details) {
   const currentUser = getCurrentUser();
+  const previousTask = getTaskById(taskId) ? deepClone(getTaskById(taskId)) : null;
+  let syncedTask = null;
+  let newHistoryEntry = null;
+
   state.tasks = state.tasks.map((task) => {
     if (task.id !== taskId) {
       return task;
@@ -1236,18 +1509,25 @@ function commitTaskChange(taskId, mutateTask, summary, details) {
     mutateTask(nextTask);
     nextTask.updatedAt = new Date().toISOString();
     nextTask.updatedBy = currentUser.name;
-    nextTask.history.unshift({
-      id: createId("HIST"),
+    nextTask.updatedById = currentUser.id;
+    newHistoryEntry = {
+      id: createUuid(),
+      authorId: currentUser.id,
       author: currentUser.name,
       at: nextTask.updatedAt,
       summary,
       details
-    });
+    };
+    nextTask.history.unshift(newHistoryEntry);
+    syncedTask = nextTask;
     return nextTask;
   });
 
   saveState();
   render();
+  if (syncedTask) {
+    queueSupabaseTaskSync(syncedTask, previousTask, newHistoryEntry);
+  }
 }
 
 function createTaskFromForm(formData) {
@@ -1260,7 +1540,8 @@ function createTaskFromForm(formData) {
   const hasDirectAssignment = !!selectedTeamUser;
 
   const newTask = {
-    id: createId("TASK"),
+    id: createUuid(),
+    taskCode: createId("TASK"),
     title: formData.get("title"),
     type: inferTaskTypeFromPipeline(pipeline),
     pipeline,
@@ -1285,16 +1566,19 @@ function createTaskFromForm(formData) {
     partnerNotes: "",
     createdAt,
     createdBy: currentUser.name,
+    createdById: currentUser.id,
     updatedAt: createdAt,
     updatedBy: currentUser.name,
+    updatedById: currentUser.id,
     flags: {
-      apiStatus: "LOCAL-ONLY",
+      apiStatus: isSupabaseMode() ? "SYNCED" : "LOCAL-ONLY",
       validationLock: false,
       openIssues: false,
       smartReadiness: "Σε αναμονή",
       cancellationRequested: false,
       cancellationRequestedAt: "",
       cancellationRequestedBy: "",
+      cancellationRequestedById: "",
       cancellationReason: "",
       pendingDocumentReason: ""
     },
@@ -1302,7 +1586,8 @@ function createTaskFromForm(formData) {
     files: [],
     history: [
       {
-        id: createId("HIST"),
+        id: createUuid(),
+        authorId: currentUser.id,
         author: currentUser.name,
         at: createdAt,
         summary: "Δημιουργία εργασίας",
@@ -1316,7 +1601,17 @@ function createTaskFromForm(formData) {
     fiberStageHistory: [],
     materials: [],
     workItems: [],
-    safety: [{ id: createId("SAFE"), item: "Γενικός έλεγχος πρόσβασης", status: "needs-review", note: "Νέα εγγραφή" }]
+    safety: [
+      {
+        id: createUuid(),
+        item: "Γενικός έλεγχος πρόσβασης",
+        status: "needs-review",
+        note: "Νέα εγγραφή",
+        position: 0,
+        createdById: currentUser.id,
+        updatedById: currentUser.id
+      }
+    ]
   };
 
   state.tasks.unshift(newTask);
@@ -1325,6 +1620,7 @@ function createTaskFromForm(formData) {
   saveState();
   window.location.hash = `#/tasks/${encodeURIComponent(newTask.id)}`;
   render();
+  queueSupabaseTaskSync(newTask, null, newTask.history[0]);
 }
 
 function updateTaskCore(taskId, formData) {
@@ -1493,12 +1789,13 @@ function addMaterial(taskId, formData) {
     taskId,
     (task) => {
       task.materials.unshift({
-        id: createId("MAT"),
+        id: createUuid(),
         catalogId: catalogItem.id,
         code: catalogItem.code,
         description: catalogItem.description,
         quantity,
-        unit: catalogItem.unit
+        unit: catalogItem.unit,
+        createdById: getCurrentUser().id
       });
     },
     "Προσθήκη υλικού",
@@ -1508,7 +1805,8 @@ function addMaterial(taskId, formData) {
 
 function addWorkItem(taskId, formData) {
   const catalogId = formData.get("catalogId");
-  const catalogItem = WORK_CATALOG_SEED.find((item) => item.id === catalogId);
+  const catalogSource = runtime.workCatalog?.length ? runtime.workCatalog : WORK_CATALOG_SEED;
+  const catalogItem = catalogSource.find((item) => item.id === catalogId);
 
   if (!catalogItem) {
     window.alert("Επίλεξε άρθρο - εργασία από το catalog εργασιών.");
@@ -1522,10 +1820,11 @@ function addWorkItem(taskId, formData) {
     taskId,
     (task) => {
       task.workItems.unshift({
-        id: createId("WRKTASK"),
+        id: createUuid(),
         catalogId: catalogItem.id,
         article: catalogItem.article,
-        description: catalogItem.description
+        description: catalogItem.description,
+        createdById: getCurrentUser().id
       });
     },
     "Προσθήκη άρθρου εργασίας",
@@ -1540,7 +1839,8 @@ function updateSafety(taskId, formData) {
       task.safety = task.safety.map((item) => ({
         ...item,
         status: formData.get(`status-${item.id}`),
-        note: formData.get(`note-${item.id}`)
+        note: formData.get(`note-${item.id}`),
+        updatedById: getCurrentUser().id
       }));
     },
     "Ενημέρωση Health & Safety",
@@ -1603,9 +1903,10 @@ function handleWorkflow(taskId, action) {
         (nextTask) => {
           const completedAt = new Date().toISOString();
           const stageSummary = {
-            id: createId("FIB"),
+            id: createUuid(),
             stage: currentStageKey,
             completedAt,
+            completedById: getCurrentUser().id,
             completedBy: getCurrentUser().name,
             skipped: false
           };
@@ -1623,7 +1924,8 @@ function handleWorkflow(taskId, action) {
             const currentIndex = currentFlow.indexOf(nextStageKey);
             if (currentIndex >= 0 && currentIndex > currentFlow.indexOf("entos_ktiriou")) {
               nextTask.fiberStageHistory.unshift({
-                id: createId("FIB"),
+                id: createUuid(),
+                completedById: getCurrentUser().id,
                 stage: "energopoiisi",
                 completedAt,
                 completedBy: getCurrentUser().name,
@@ -1680,6 +1982,7 @@ function handleWorkflow(taskId, action) {
         nextTask.flags.cancellationRequested = true;
         nextTask.flags.cancellationRequestedAt = new Date().toISOString();
         nextTask.flags.cancellationRequestedBy = getCurrentUser().name;
+        nextTask.flags.cancellationRequestedById = getCurrentUser().id;
         nextTask.flags.cancellationReason = cancellationComment;
       },
       "Αίτημα ακύρωσης",
@@ -1712,9 +2015,10 @@ function handleWorkflow(taskId, action) {
             const currentStageKey = getCurrentLeitourgiesStageKey(nextTask);
             if (currentStageKey && !hasFiberStageEntry(nextTask, currentStageKey)) {
               nextTask.fiberStageHistory.unshift({
-                id: createId("FIB"),
+                id: createUuid(),
                 stage: currentStageKey,
                 completedAt: approvedAt,
+                completedById: getCurrentUser().id,
                 completedBy: getCurrentUser().name,
                 skipped: false
               });
@@ -1722,9 +2026,10 @@ function handleWorkflow(taskId, action) {
           }
 
           nextTask.pipelineHistory.unshift({
-            id: createId("PIPE"),
+            id: createUuid(),
             pipeline: nextTask.pipeline,
             completedAt: approvedAt,
+            approvedById: getCurrentUser().id,
             approvedBy: getCurrentUser().name
           });
           nextTask.pipeline = nextPipeline;
@@ -1745,6 +2050,7 @@ function handleWorkflow(taskId, action) {
           nextTask.flags.cancellationRequested = false;
           nextTask.flags.cancellationRequestedAt = "";
           nextTask.flags.cancellationRequestedBy = "";
+          nextTask.flags.cancellationRequestedById = "";
           nextTask.flags.cancellationReason = "";
         },
         `Ολοκλήρωση pipeline ${PIPELINE_META[task.pipeline].label}`,
@@ -1767,6 +2073,7 @@ function handleWorkflow(taskId, action) {
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationRequestedById = "";
         task.flags.cancellationReason = "";
         task.completedAt = new Date().toISOString();
       },
@@ -1796,6 +2103,7 @@ function handleWorkflow(taskId, action) {
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationRequestedById = "";
         task.flags.cancellationReason = "";
       },
       "Έγκριση αιτήματος ακύρωσης",
@@ -1819,6 +2127,7 @@ function handleWorkflow(taskId, action) {
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationRequestedById = "";
         task.flags.cancellationReason = "";
         task.flags.pendingDocumentReason = "";
       },
@@ -1847,6 +2156,7 @@ function handleWorkflow(taskId, action) {
         task.flags.cancellationRequested = false;
         task.flags.cancellationRequestedAt = "";
         task.flags.cancellationRequestedBy = "";
+        task.flags.cancellationRequestedById = "";
         task.flags.cancellationReason = "";
         task.completedAt = "";
       },
@@ -1859,7 +2169,7 @@ function handleWorkflow(taskId, action) {
   }
 }
 
-function handlePhotoUpload(input) {
+async function handlePhotoUpload(input) {
   const files = Array.from(input.files || []);
   if (!files.length) {
     return;
@@ -1870,25 +2180,39 @@ function handlePhotoUpload(input) {
   const category = input.closest("form")?.querySelector("select[name='category']")?.value || "before";
   const currentUser = getCurrentUser();
 
-  Promise.all(
-    files.map(
-      (file) =>
-        new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            resolve({
-              id: createId("PHOTO"),
-              name: file.name,
-              category,
-              uploadedBy: currentUser.name,
-              uploadedAt: new Date().toISOString(),
-              preview: reader.result
-            });
-          };
-          reader.readAsDataURL(file);
-        })
-    )
-  ).then((photos) => {
+  try {
+    let photos = [];
+
+    if (isSupabaseMode() && isAuthenticated()) {
+      photos = await uploadTaskPhotos(runtime.supabase, taskId, files, category, currentUser);
+    } else {
+      photos = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                resolve({
+                  id: createUuid(),
+                  name: file.name,
+                  category,
+                  uploadedById: currentUser.id,
+                  uploadedBy: currentUser.name,
+                  uploadedAt: new Date().toISOString(),
+                  preview: reader.result,
+                  storagePath: "",
+                  metadata: {
+                    size: file.size || 0,
+                    mimeType: file.type || "image/jpeg"
+                  }
+                });
+              };
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+    }
+
     commitTaskChange(
       taskId,
       (task) => {
@@ -1897,10 +2221,16 @@ function handlePhotoUpload(input) {
       "Μεταφόρτωση φωτογραφιών",
       `Ανέβηκαν ${photos.length} νέες φωτογραφίες στην κατηγορία ${category}.`
     );
-  });
+  } catch (error) {
+    runtime.syncError = error.message;
+    window.alert(`Η μεταφόρτωση φωτογραφιών απέτυχε: ${error.message}`);
+    render();
+  } finally {
+    input.value = "";
+  }
 }
 
-function handleFileUpload(input) {
+async function handleFileUpload(input) {
   const files = Array.from(input.files || []);
   if (!files.length) {
     return;
@@ -1909,21 +2239,35 @@ function handleFileUpload(input) {
   const taskId = input.getAttribute("data-task-id");
   const currentUser = getCurrentUser();
 
-  commitTaskChange(
-    taskId,
-    (task) => {
-      task.files.unshift(
-        ...files.map((file) => ({
-          id: createId("FILE"),
-          name: file.name,
-          type: file.type || "application/octet-stream",
-          size: file.size,
-          uploadedBy: currentUser.name,
-          uploadedAt: new Date().toISOString()
-        }))
-      );
-    },
-    "Μεταφόρτωση αρχείων",
-    `Ανέβηκαν ${files.length} νέα συνημμένα αρχεία.`
-  );
+  try {
+    const nextFiles =
+      isSupabaseMode() && isAuthenticated()
+        ? await uploadTaskFiles(runtime.supabase, taskId, files, currentUser)
+        : files.map((file) => ({
+            id: createUuid(),
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            size: file.size,
+            uploadedById: currentUser.id,
+            uploadedBy: currentUser.name,
+            uploadedAt: new Date().toISOString(),
+            storagePath: "",
+            downloadUrl: ""
+          }));
+
+    commitTaskChange(
+      taskId,
+      (task) => {
+        task.files.unshift(...nextFiles);
+      },
+      "Μεταφόρτωση αρχείων",
+      `Ανέβηκαν ${files.length} νέα συνημμένα αρχεία.`
+    );
+  } catch (error) {
+    runtime.syncError = error.message;
+    window.alert(`Η μεταφόρτωση αρχείων απέτυχε: ${error.message}`);
+    render();
+  } finally {
+    input.value = "";
+  }
 }

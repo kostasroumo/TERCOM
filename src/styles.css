@@ -260,6 +260,10 @@ svg {
   padding: 22px;
 }
 
+.workspace-alert {
+  margin-top: 16px;
+}
+
 .app-shell.is-sidebar-collapsed .sidebar {
   padding-inline: 16px;
 }
@@ -761,6 +765,12 @@ svg {
   box-shadow: none;
 }
 
+.button--tiny {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
 .button--danger {
   background: linear-gradient(135deg, #db5f63, #bb3338);
 }
@@ -1230,6 +1240,28 @@ svg {
   color: #81550a;
   background: rgba(240, 161, 29, 0.16);
   border-color: rgba(240, 161, 29, 0.26);
+}
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.auth-card {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 18px;
+}
+
+.topbar-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: rgba(18, 56, 78, 0.06);
 }
 
 .mini-spec,

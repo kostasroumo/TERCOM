@@ -74,7 +74,7 @@ function renderFiberStageStrip(task) {
   `;
 }
 
-function renderMainTab(task, permissions) {
+function renderMainTab(task, permissions, assignees = ASSIGNEE_OPTIONS) {
   const canEditSchedule = permissions.canManageAssignment || permissions.canScheduleVisit;
 
   return `
@@ -114,7 +114,7 @@ function renderMainTab(task, permissions) {
         <span>Πόρος / Team</span>
         <select name="resourceTeam" ${permissions.canEditCore ? "" : "disabled"}>
           <option value="">Δεν ορίστηκε</option>
-          ${ASSIGNEE_OPTIONS.map(
+          ${assignees.map(
             (assignee) =>
               `<option value="${assignee.id}"${task.resourceTeam === assignee.name ? " selected" : ""}>${escapeHtml(assignee.name)}</option>`
           ).join("")}
@@ -132,7 +132,7 @@ function renderMainTab(task, permissions) {
         <span>Ανατέθηκε σε</span>
         <select name="assignedUserId" ${permissions.canManageAssignment ? "" : "disabled"}>
           <option value="">Δεν έχει ανατεθεί</option>
-          ${ASSIGNEE_OPTIONS.map(
+          ${assignees.map(
             (technician) => `<option value="${technician.id}"${task.assignedUserId === technician.id ? " selected" : ""}>${escapeHtml(technician.name)}</option>`
           ).join("")}
         </select>
@@ -218,6 +218,11 @@ function renderFilesTab(task, permissions) {
                         <span>${formatFileSize(file.size)}</span>
                         <span>${escapeHtml(file.uploadedBy)}</span>
                         <span>${formatDateTime(file.uploadedAt)}</span>
+                        ${
+                          file.downloadUrl
+                            ? `<a class="button button--ghost button--tiny" href="${escapeHtml(file.downloadUrl)}" target="_blank" rel="noreferrer">Άνοιγμα</a>`
+                            : ""
+                        }
                       </div>
                     </article>
                   `
@@ -577,7 +582,7 @@ function renderSystemTab(task, permissions) {
       <div class="system-grid">
         <article class="system-card"><span>Current pipeline</span><strong>${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</strong></article>
         <article class="system-card"><span>Pipeline history</span><strong>${escapeHtml(completedPipelines)}</strong></article>
-        <article class="system-card"><span>Task ID</span><strong>${escapeHtml(task.id)}</strong></article>
+        <article class="system-card"><span>Task ID</span><strong>${escapeHtml(task.taskCode || task.id)}</strong></article>
         ${adminCreatedSpec}
         ${assignmentSpec}
         ${fiberStageSpec}
@@ -601,6 +606,7 @@ function renderTabContent(
   task,
   activeTab,
   permissions,
+  assignees,
   inventory,
   materialSearch,
   selectedMaterialId,
@@ -627,7 +633,7 @@ function renderTabContent(
       return renderSystemTab(task, permissions);
     case "main":
     default:
-      return renderMainTab(task, permissions);
+      return renderMainTab(task, permissions, assignees);
   }
 }
 
@@ -742,6 +748,7 @@ export function TaskDetail({
   task,
   activeTab,
   permissions,
+  assignees,
   inventory,
   materialSearch,
   selectedMaterialId,
@@ -852,6 +859,7 @@ export function TaskDetail({
             task,
             activeTab,
             permissions,
+            assignees,
             inventory,
             materialSearch,
             selectedMaterialId,
