@@ -685,25 +685,25 @@ function countTasksForPipelineStatus(tasks, pipelineKey, statusKey) {
 function getPermissions(task) {
   const currentUser = getCurrentUser();
   const isAdmin = state.currentRole === "admin";
-  const isAssignedPartner = state.currentRole === "partner" && currentUser.id === task.assignedUserId;
+  const isAssignedExecutor = currentUser.id === task.assignedUserId;
 
   return {
     canEditCore: isAdmin,
     canManageAssignment: isAdmin,
     canEditStatusDirectly: isAdmin,
     canEditAdminNotes: isAdmin,
-    canEditPartnerNotes: isAssignedPartner,
-    canUploadPhotos: isAdmin || isAssignedPartner,
-    canUploadFiles: isAdmin || isAssignedPartner,
-    canAddMaterials: isAdmin || isAssignedPartner,
-    canAddWorkItems: isAdmin || isAssignedPartner,
-    canEditSafety: isAdmin || isAssignedPartner,
-    canScheduleVisit: isAssignedPartner && ["assigned", "scheduled"].includes(task.status),
-    canStart: (isAdmin || isAssignedPartner) && task.status === "scheduled",
-    canSubmitValidation: (isAdmin || isAssignedPartner) && ["in_progress", "completed_with_pending"].includes(task.status),
+    canEditPartnerNotes: isAssignedExecutor,
+    canUploadPhotos: isAdmin || isAssignedExecutor,
+    canUploadFiles: isAdmin || isAssignedExecutor,
+    canAddMaterials: isAdmin || isAssignedExecutor,
+    canAddWorkItems: isAdmin || isAssignedExecutor,
+    canEditSafety: isAdmin || isAssignedExecutor,
+    canScheduleVisit: isAssignedExecutor && ["assigned", "scheduled"].includes(task.status),
+    canStart: (isAdmin || isAssignedExecutor) && task.status === "scheduled",
+    canSubmitValidation: (isAdmin || isAssignedExecutor) && ["in_progress", "completed_with_pending"].includes(task.status),
     canApprove: isAdmin && task.status === "pending_validation",
     canReject: isAdmin && task.status === "pending_validation",
-    canRequestCancellation: isAssignedPartner && task.status === "in_progress" && !task.flags.cancellationRequested,
+    canRequestCancellation: isAssignedExecutor && task.status === "in_progress" && !task.flags.cancellationRequested,
     canApproveCancellation: isAdmin && !!task.flags.cancellationRequested,
     canRejectCancellation: isAdmin && !!task.flags.cancellationRequested
   };
@@ -1764,7 +1764,7 @@ function updateTaskCore(taskId, formData) {
   const nextValues = Object.fromEntries(formData.entries());
   const assignedUserId = nextValues.assignedUserId || "";
   const assignedUser = getAssignableUserById(assignedUserId);
-  const isPartnerEditor = state.currentRole === "partner";
+  const currentUser = getCurrentUser();
 
   commitTaskChange(
     taskId,
@@ -1853,7 +1853,9 @@ function updateTaskCore(taskId, formData) {
       if (nextValues.startDate !== undefined) {
         const previousStartDate = task.startDate || "";
         task.startDate = nextValues.startDate;
-        if (isPartnerEditor && nextValues.startDate && nextValues.startDate !== previousStartDate) {
+        const effectiveAssignedUserId = nextValues.assignedUserId !== undefined ? assignedUserId : task.assignedUserId;
+        const isExecutorEditor = currentUser.id === effectiveAssignedUserId;
+        if (isExecutorEditor && nextValues.startDate && nextValues.startDate !== previousStartDate) {
           partnerScheduledVisit = true;
         }
       }
