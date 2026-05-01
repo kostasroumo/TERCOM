@@ -177,12 +177,38 @@ async function bootstrap() {
         render();
       });
 
-      const { data } = await withTimeout(runtime.supabase.auth.getSession(), 10000, "Ο έλεγχος του Supabase session");
-      runtime.session = data.session;
+      runtime.loading = false;
+      render();
 
-      if (runtime.session) {
-        await withTimeout(loadSupabaseState(), 15000, "Η αρχική φόρτωση των δεδομένων από Supabase");
-      }
+      runtime.supabase.auth
+        .getSession()
+        .then(async ({ data }) => {
+          const restoredSession = data.session;
+          if (!restoredSession) {
+            return;
+          }
+
+          const sessionAlreadyLoaded =
+            runtime.session?.access_token === restoredSession.access_token &&
+            runtime.profile?.id === restoredSession.user?.id;
+
+          runtime.session = restoredSession;
+
+          if (!sessionAlreadyLoaded) {
+            try {
+              await withTimeout(loadSupabaseState(), 15000, "Η αρχική φόρτωση των δεδομένων από Supabase");
+            } catch (error) {
+              runtime.syncError = error.message;
+            }
+          }
+        })
+        .catch((error) => {
+          console.warn("Supabase session restore skipped:", error);
+        })
+        .finally(() => {
+          runtime.loading = false;
+          render();
+        });
     }
   } catch (error) {
     runtime.syncError = error.message;
@@ -214,7 +240,7 @@ async function loadSupabaseState() {
   }
 
   runtime.activeBootstrapLoad = (async () => {
-    const payload = await fetchSupabaseBootstrapData(runtime.supabase);
+    const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
 
     runtime.session = payload.session;
     runtime.profile = payload.profile;
@@ -673,7 +699,7 @@ async function ensureSupabaseTaskDetail(taskId) {
   }
 
   const loadPromise = (async () => {
-    const fullTask = await fetchSupabaseTaskDetail(runtime.supabase, taskId);
+    const fullTask = await fetchSupabaseTaskDetail(runtime.supabase, taskId, runtime.session);
     const normalizedTask = normalizeTask(fullTask);
     const exists = state.tasks.some((task) => task.id === taskId);
     state.tasks = exists

@@ -480,9 +480,8 @@ export function createSupabaseBrowserClient(config) {
   });
 }
 
-export async function fetchSupabaseBootstrapData(client) {
-  const sessionData = await client.auth.getSession();
-  const session = sessionData.data.session;
+export async function fetchSupabaseBootstrapData(client, sessionOverride = null) {
+  const session = sessionOverride || (await client.auth.getSession()).data.session;
 
   if (!session) {
     return {
@@ -623,9 +622,8 @@ export async function fetchSupabaseCatalogs(client) {
   };
 }
 
-export async function fetchSupabaseTaskDetail(client, taskId) {
-  const sessionData = await client.auth.getSession();
-  const session = sessionData.data.session;
+export async function fetchSupabaseTaskDetail(client, taskId, sessionOverride = null) {
+  const session = sessionOverride || (await client.auth.getSession()).data.session;
 
   if (!session) {
     throw new Error("Δεν υπάρχει ενεργό session.");
