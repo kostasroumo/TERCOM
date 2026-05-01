@@ -493,16 +493,6 @@ function renderAuthGate() {
                 <p>Ενιαίο περιβάλλον για ανάθεση, εκτέλεση, παρακολούθηση και επικύρωση εργασιών πεδίου.</p>
               </div>
             </div>
-            <div class="auth-brand__chips">
-              <span class="pill pill--pipeline-autopsia">Αυτοψία</span>
-              <span class="pill pill--pipeline-leitourgies-inwn">Λειτουργίες Ινών</span>
-              <span class="pill pill--completed">Βλάβες / Συντήρηση</span>
-            </div>
-            <dl class="auth-brand__facts">
-              <div><dt>Live βάση</dt><dd>Supabase</dd></div>
-              <div><dt>Πρόσβαση</dt><dd>Role-based</dd></div>
-              <div><dt>Ροή</dt><dd>Task pipelines</dd></div>
-            </dl>
           </aside>
 
           <form class="surface auth-panel" data-login-form>
@@ -517,11 +507,6 @@ function renderAuthGate() {
               <span>Κωδικός</span>
               <input type="password" name="password" autocomplete="current-password" required ${runtime.authPending ? "disabled" : ""} />
             </label>
-            ${
-              runtime.authPending
-                ? `<div class="auth-inline-status"><span class="auth-inline-status__dot"></span><p>Γίνεται έλεγχος στοιχείων και φόρτωση περιβάλλοντος...</p></div>`
-                : ""
-            }
             ${runtime.authError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.authError)}</p></div>` : ""}
             ${runtime.syncError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.syncError)}</p></div>` : ""}
             <div class="form-actions auth-form-actions">
