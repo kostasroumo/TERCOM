@@ -157,6 +157,9 @@ async function bootstrap() {
         }
 
         if (session) {
+          if (window.location.hash !== "#/dashboard") {
+            window.location.hash = "#/dashboard";
+          }
           try {
             await withTimeout(loadSupabaseState(), 15000, "Η φόρτωση των δεδομένων από Supabase");
           } catch (error) {
@@ -1979,6 +1982,9 @@ function handleSubmit(event) {
       .then(() => {
         resetUiStateForLiveSession();
         saveState();
+        if (window.location.hash !== "#/dashboard") {
+          window.location.hash = "#/dashboard";
+        }
       })
       .catch((error) => {
         runtime.authPending = false;

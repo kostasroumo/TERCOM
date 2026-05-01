@@ -499,6 +499,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
     const normalizedDashboard = normalizeDashboardBootstrapPayload(dashboardPayload);
 
     if (normalizedDashboard.profile) {
+      console.info("[Supabase bootstrap] using dashboard_bootstrap_v1 RPC");
       return {
         session,
         profile: normalizedDashboard.profile,
@@ -510,8 +511,8 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
         dashboardSummary: normalizedDashboard
       };
     }
-  } catch {
-    // Fall back to direct table reads if the RPC hasn't been installed yet.
+  } catch (error) {
+    console.warn("[Supabase bootstrap] RPC failed, falling back to direct reads:", error?.message || error);
   }
 
   const user = session.user;
