@@ -52,6 +52,7 @@ const runtime = {
   authError: "",
   syncError: "",
   syncQueue: Promise.resolve(),
+  authSubscription: null,
   activeBootstrapLoad: null,
   activeBootstrapToken: "",
   lastLoadedSessionToken: "",
@@ -143,68 +144,61 @@ async function bootstrap() {
       runtime.config = config;
       runtime.supabase = createSupabaseBrowserClient(config);
 
-      runtime.supabase.auth.onAuthStateChange(async (event, session) => {
+      runtime.authSubscription?.unsubscribe?.();
+      const { data } = runtime.supabase.auth.onAuthStateChange((event, session) => {
         runtime.session = session;
         runtime.authError = "";
 
-        if (
-          event === "TOKEN_REFRESHED" &&
-          session?.user?.id &&
-          runtime.profile?.id === session.user.id
-        ) {
+        if (!session) {
+          clearSupabaseLiveState();
+          runtime.authPending = false;
           runtime.loading = false;
           render();
           return;
         }
 
-        if (session) {
-          if (window.location.hash !== "#/dashboard") {
-            window.location.hash = "#/dashboard";
-          }
-          try {
-            await withTimeout(loadSupabaseState(), 15000, "Η φόρτωση των δεδομένων από Supabase");
-          } catch (error) {
-            runtime.syncError = error.message;
-          }
-        } else {
-          runtime.profile = null;
-          runtime.profiles = [];
-          runtime.lastLoadedSessionToken = "";
-          state.currentRole = "admin";
-          state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
-          resetUiStateForLiveSession();
-          saveState();
+        if (
+          runtime.lastLoadedSessionToken === session.access_token &&
+          runtime.profile?.id === session.user?.id
+        ) {
+          runtime.authPending = false;
+          runtime.loading = false;
+          render();
+          return;
+        }
+
+        if (window.location.hash !== "#/dashboard") {
+          window.location.hash = "#/dashboard";
         }
 
         runtime.authPending = false;
         runtime.loading = false;
         render();
+
+        window.setTimeout(() => {
+          scheduleSupabaseHydration(`auth:${event}`, session);
+        }, 0);
       });
+      runtime.authSubscription = data.subscription;
 
       runtime.loading = false;
       render();
 
       runtime.supabase.auth
         .getSession()
-        .then(async ({ data }) => {
+        .then(({ data }) => {
           const restoredSession = data.session;
           if (!restoredSession) {
             return;
           }
 
-          const sessionAlreadyLoaded =
-            runtime.session?.access_token === restoredSession.access_token &&
-            runtime.profile?.id === restoredSession.user?.id;
-
           runtime.session = restoredSession;
+          runtime.loading = false;
+          render();
 
-          if (!sessionAlreadyLoaded) {
-            try {
-              await withTimeout(loadSupabaseState(), 15000, "Η αρχική φόρτωση των δεδομένων από Supabase");
-            } catch (error) {
-              runtime.syncError = error.message;
-            }
-          }
+          window.setTimeout(() => {
+            scheduleSupabaseHydration("session-restore", restoredSession);
+          }, 0);
         })
         .catch((error) => {
           console.warn("Supabase session restore skipped:", error);
@@ -223,59 +217,94 @@ async function bootstrap() {
 }
 
 async function loadSupabaseState() {
-  const currentToken = runtime.session?.access_token || "";
+  const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
+
+  runtime.session = payload.session;
+  runtime.profile = payload.profile;
+  runtime.profiles = payload.profiles;
+  runtime.dashboardSummary =
+    payload.dashboardSummary || buildDashboardSummaryFromTasks(payload.tasks || [], payload.profiles || [], payload.profile || null);
+  runtime.tasksLoaded = !!payload.tasksLoaded;
+  runtime.catalogsLoaded = !!((payload.workCatalog && payload.workCatalog.length) || (payload.inventory && payload.inventory.length));
+  runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
+  state.tasks = (payload.tasks || []).map(normalizeTask);
+  state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
+  state.currentRole = payload.profile?.role || "partner";
+  state.currentUserId = payload.profile?.id || "";
+  state.ui.showCreateModal = false;
+  state.ui.validationComment = "";
+  state.ui.cancellationComment = "";
+  if (
+    state.currentRole === "admin" &&
+    state.ui.expandedAdminAssignee !== "unassigned" &&
+    !payload.profiles.some((profile) => profile.id === state.ui.expandedAdminAssignee)
+  ) {
+    state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
+  }
+  runtime.lastLoadedSessionToken = payload.session?.access_token || "";
+  saveState();
+}
+
+function clearSupabaseLiveState() {
+  runtime.profile = null;
+  runtime.profiles = [];
+  runtime.dashboardSummary = null;
+  runtime.tasksLoaded = false;
+  runtime.catalogsLoaded = false;
+  runtime.lastLoadedSessionToken = "";
+  runtime.activeBootstrapLoad = null;
+  runtime.activeBootstrapToken = "";
+  state.currentRole = "admin";
+  state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
+  resetUiStateForLiveSession();
+  saveState();
+}
+
+function scheduleSupabaseHydration(reason, session = runtime.session) {
+  const token = session?.access_token || "";
+
+  if (!token) {
+    return Promise.resolve();
+  }
 
   if (
-    runtime.activeBootstrapLoad &&
-    (!runtime.activeBootstrapToken || !currentToken || runtime.activeBootstrapToken === currentToken)
+    runtime.lastLoadedSessionToken === token &&
+    runtime.profile?.id === session?.user?.id
   ) {
+    console.info("[bootstrap] skip already loaded", reason);
+    return Promise.resolve();
+  }
+
+  if (runtime.activeBootstrapLoad && runtime.activeBootstrapToken === token) {
+    console.info("[bootstrap] join active load", reason);
     return runtime.activeBootstrapLoad;
   }
 
-  if (
-    currentToken &&
-    runtime.lastLoadedSessionToken === currentToken &&
-    runtime.profile?.id === runtime.session?.user?.id
-  ) {
-    return;
-  }
+  runtime.session = session;
+  runtime.activeBootstrapToken = token;
+  console.info("[bootstrap] start", reason);
 
-  runtime.activeBootstrapToken = currentToken;
-  runtime.activeBootstrapLoad = (async () => {
-    const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
+  runtime.activeBootstrapLoad = withTimeout(
+    loadSupabaseState(),
+    15000,
+    "Η φόρτωση των δεδομένων από Supabase"
+  )
+    .then(() => {
+      runtime.syncError = "";
+      console.info("[bootstrap] done", reason);
+    })
+    .catch((error) => {
+      runtime.syncError = error.message;
+      console.error("[bootstrap] failed", reason, error);
+    })
+    .finally(() => {
+      runtime.activeBootstrapLoad = null;
+      runtime.activeBootstrapToken = "";
+      render();
+    });
 
-    runtime.session = payload.session;
-    runtime.profile = payload.profile;
-    runtime.profiles = payload.profiles;
-    runtime.dashboardSummary =
-      payload.dashboardSummary || buildDashboardSummaryFromTasks(payload.tasks || [], payload.profiles || [], payload.profile || null);
-    runtime.tasksLoaded = !!payload.tasksLoaded;
-    runtime.catalogsLoaded = !!((payload.workCatalog && payload.workCatalog.length) || (payload.inventory && payload.inventory.length));
-    runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
-    state.tasks = (payload.tasks || []).map(normalizeTask);
-    state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
-    state.currentRole = payload.profile?.role || "partner";
-    state.currentUserId = payload.profile?.id || "";
-    state.ui.showCreateModal = false;
-    state.ui.validationComment = "";
-    state.ui.cancellationComment = "";
-    if (
-      state.currentRole === "admin" &&
-      state.ui.expandedAdminAssignee !== "unassigned" &&
-      !payload.profiles.some((profile) => profile.id === state.ui.expandedAdminAssignee)
-    ) {
-      state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
-    }
-    runtime.lastLoadedSessionToken = payload.session?.access_token || "";
-    saveState();
-  })();
-
-  try {
-    await runtime.activeBootstrapLoad;
-  } finally {
-    runtime.activeBootstrapLoad = null;
-    runtime.activeBootstrapToken = "";
-  }
+  render();
+  return runtime.activeBootstrapLoad;
 }
 
 async function ensureSupabaseTasksLoaded() {
@@ -330,7 +359,7 @@ async function refreshSupabaseDashboardSummary() {
     return;
   }
 
-  const payload = await fetchSupabaseBootstrapData(runtime.supabase);
+  const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
   if (payload.profile) {
     runtime.profile = payload.profile;
   }
@@ -345,8 +374,16 @@ function isSupabaseMode() {
   return runtime.mode === "supabase";
 }
 
-function isAuthenticated() {
+function hasAuthSession() {
+  return !!runtime.session;
+}
+
+function hasLiveProfile() {
   return !!runtime.session && !!runtime.profile;
+}
+
+function isAuthenticated() {
+  return hasLiveProfile();
 }
 
 function getRuntimeAssignableProfiles() {
@@ -481,7 +518,7 @@ function renderAuthGate() {
     return true;
   }
 
-  if (isSupabaseMode() && !isAuthenticated()) {
+  if (isSupabaseMode() && !hasAuthSession()) {
     app.innerHTML = `
       <section class="auth-screen">
         <div class="auth-layout">
@@ -629,6 +666,16 @@ function getCurrentRoleUsers() {
 function getCurrentUser() {
   if (isSupabaseMode() && isAuthenticated()) {
     return runtime.profile;
+  }
+
+  if (isSupabaseMode() && runtime.session?.user) {
+    return {
+      id: runtime.session.user.id,
+      email: runtime.session.user.email || "",
+      name: runtime.profile?.name || runtime.session.user.email || "Συνδεδεμένος χρήστης",
+      role: runtime.profile?.role || null,
+      isActive: true
+    };
   }
 
   return getCurrentRoleUsers().find((user) => user.id === state.currentUserId) || getCurrentRoleUsers()[0];
@@ -1019,6 +1066,10 @@ function getWorkCatalogRows() {
 }
 
 function canCreateTasks() {
+  if (isSupabaseMode()) {
+    return runtime.profile?.role === "admin";
+  }
+
   return state.currentRole === "admin";
 }
 
@@ -1281,7 +1332,12 @@ function render() {
   const filteredTasks = getFilteredTasks();
   const currentUser = getCurrentUser();
   const showManualSwitches = !isSupabaseMode();
-  const roleLabel = currentUser?.role ? ROLE_LABELS[currentUser.role] || currentUser.role : ROLE_LABELS[state.currentRole];
+  const isSessionHydrating = isSupabaseMode() && hasAuthSession() && !hasLiveProfile();
+  const roleLabel = isSessionHydrating
+    ? "Σύνδεση"
+    : currentUser?.role
+      ? ROLE_LABELS[currentUser.role] || currentUser.role
+      : ROLE_LABELS[state.currentRole];
 
   app.innerHTML = `
     <div class="app-shell${state.ui.sidebarCollapsed ? " is-sidebar-collapsed" : ""}">
@@ -1387,6 +1443,16 @@ function render() {
 }
 
 function renderView(route, visibleTasks, filteredTasks, currentUser) {
+  if (isSupabaseMode() && hasAuthSession() && !hasLiveProfile()) {
+    return `
+      <section class="surface empty-screen">
+        <h2>Φόρτωση dashboard</h2>
+        <p>Η σύνδεση ολοκληρώθηκε. Φορτώνουμε τα στοιχεία του λογαριασμού και την περίληψη εργασιών.</p>
+        ${runtime.syncError ? `<button class="button button--ghost" data-retry-bootstrap>Ξανά προσπάθεια</button>` : ""}
+      </section>
+    `;
+  }
+
   if (isSupabaseMode() && (route.view === "tasks" || route.view === "report") && !runtime.tasksLoaded) {
     ensureSupabaseTasksLoaded().catch((error) => {
       runtime.syncError = error.message;
@@ -1772,10 +1838,14 @@ function handleClick(event) {
   }
 
   if (event.target.closest("[data-retry-bootstrap]")) {
-    runtime.loading = true;
     runtime.syncError = "";
-    render();
-    bootstrap();
+    if (isSupabaseMode() && hasAuthSession()) {
+      scheduleSupabaseHydration("manual-retry");
+    } else {
+      runtime.loading = true;
+      render();
+      bootstrap();
+    }
     return;
   }
 
@@ -1979,12 +2049,19 @@ function handleSubmit(event) {
       String(formData.get("email") || ""),
       String(formData.get("password") || "")
     )
-      .then(() => {
+      .then((authData) => {
         resetUiStateForLiveSession();
         saveState();
+        runtime.session = authData.session || runtime.session;
+        runtime.authPending = false;
+        runtime.loading = false;
         if (window.location.hash !== "#/dashboard") {
           window.location.hash = "#/dashboard";
         }
+        render();
+        window.setTimeout(() => {
+          scheduleSupabaseHydration("login-submit", authData.session || runtime.session);
+        }, 0);
       })
       .catch((error) => {
         runtime.authPending = false;
