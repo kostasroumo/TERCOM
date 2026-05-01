@@ -22,6 +22,7 @@ import { hasSupabaseRuntimeConfig, loadRuntimeConfig } from "./lib/runtimeConfig
 import {
   createSupabaseBrowserClient,
   fetchSupabaseBootstrapData,
+  fetchSupabaseTaskDetail,
   persistTaskToSupabase,
   signInWithPassword,
   signOutSession,
@@ -46,7 +47,8 @@ const runtime = {
   syncError: "",
   syncQueue: Promise.resolve(),
   activeBootstrapLoad: null,
-  lastLoadedSessionToken: ""
+  lastLoadedSessionToken: "",
+  activeTaskDetailLoads: new Map()
 };
 
 let state = loadState();
@@ -394,6 +396,35 @@ function getTaskById(taskId) {
   return state.tasks.find((task) => task.id === taskId);
 }
 
+async function ensureSupabaseTaskDetail(taskId) {
+  if (!isSupabaseMode() || !isAuthenticated() || !taskId) {
+    return;
+  }
+
+  const existingTask = getTaskById(taskId);
+  if (existingTask?.detailLoaded) {
+    return;
+  }
+
+  if (runtime.activeTaskDetailLoads.has(taskId)) {
+    return runtime.activeTaskDetailLoads.get(taskId);
+  }
+
+  const loadPromise = (async () => {
+    const fullTask = await fetchSupabaseTaskDetail(runtime.supabase, taskId);
+    state.tasks = state.tasks.map((task) => (task.id === taskId ? normalizeTask(fullTask) : task));
+    saveState();
+  })();
+
+  runtime.activeTaskDetailLoads.set(taskId, loadPromise);
+
+  try {
+    await loadPromise;
+  } finally {
+    runtime.activeTaskDetailLoads.delete(taskId);
+  }
+}
+
 function normalizeTask(task) {
   const serviceProvider = task.serviceProvider || "other";
   const isLeitourgiesTask = (task.pipeline || "autopsia") === "leitourgies_inwn";
@@ -416,6 +447,7 @@ function normalizeTask(task) {
     customerName: task.customerName || "",
     mobilePhone: task.mobilePhone || "",
     landlinePhone: task.landlinePhone || "",
+    detailLoaded: task.detailLoaded !== false,
     resourceTeam: normalizedResourceTeam,
     srId: task.srId || task.projectId || "",
     bid: task.bid || task.serviceRequestId || "",
@@ -1022,6 +1054,20 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
           <h2>Δεν έχεις πρόσβαση σε αυτή την εργασία</h2>
           <p>Η εργασία δεν σου έχει ανατεθεί από τον admin.</p>
           <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
+        </section>
+      `;
+    }
+
+    if (isSupabaseMode() && !task.detailLoaded) {
+      ensureSupabaseTaskDetail(task.id).catch((error) => {
+        runtime.syncError = error.message;
+        render();
+      });
+
+      return `
+        <section class="surface empty-screen">
+          <h2>Φόρτωση λεπτομερειών εργασίας</h2>
+          <p>Ετοιμάζουμε φωτογραφίες, αρχεία, ιστορικό και λοιπά στοιχεία της εργασίας.</p>
         </section>
       `;
     }
@@ -1686,6 +1732,7 @@ function createTaskFromForm(formData) {
           : "Η εργασία δημιουργήθηκε και περιμένει ανάθεση από τον admin."
       }
     ],
+    detailLoaded: true,
     pipelineHistory: [],
     fiberStageKey: pipeline === "leitourgies_inwn" ? getDefaultLeitourgiesInwnStage(formData.get("serviceProvider") || "other") : "",
     fiberStageHistory: [],

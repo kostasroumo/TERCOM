@@ -90,6 +90,51 @@ function mapWorkCatalogRow(row) {
   };
 }
 
+async function fetchTaskRelatedData(client, taskIds) {
+  const [
+    historyRows,
+    pipelineHistoryRows,
+    fiberStageHistoryRows,
+    photoRows,
+    fileRows,
+    materialItemRows,
+    workItemRows,
+    safetyRows
+  ] = await Promise.all([
+    fetchCollection(client, "task_history", taskIds, "*", "created_at"),
+    fetchCollection(client, "task_pipeline_history", taskIds, "*", "completed_at"),
+    fetchCollection(client, "task_fiber_stage_history", taskIds, "*", "completed_at"),
+    fetchCollection(client, "task_photos", taskIds, "*", "uploaded_at"),
+    fetchCollection(client, "task_files", taskIds, "*", "uploaded_at"),
+    fetchCollection(client, "task_materials", taskIds, "*", "created_at"),
+    fetchCollection(client, "task_work_items", taskIds, "*", "created_at"),
+    taskIds.length
+      ? assertNoError(
+          await client.from("task_safety_items").select("*").in("task_id", taskIds).order("position", { ascending: true }),
+          "Fetch task_safety_items"
+        )
+      : []
+  ]);
+
+  const [photoUrlMap, fileUrlMap] = await Promise.all([
+    createSignedUrlMap(client, "task-photos", photoRows),
+    createSignedUrlMap(client, "task-files", fileRows)
+  ]);
+
+  return {
+    historyMap: groupByTaskId(historyRows),
+    pipelineHistoryMap: groupByTaskId(pipelineHistoryRows),
+    fiberStageHistoryMap: groupByTaskId(fiberStageHistoryRows),
+    photosMap: groupByTaskId(photoRows),
+    filesMap: groupByTaskId(fileRows),
+    materialsMap: groupByTaskId(materialItemRows),
+    workItemsMap: groupByTaskId(workItemRows),
+    safetyMap: groupByTaskId(safetyRows),
+    photoUrlMap,
+    fileUrlMap
+  };
+}
+
 function mapTaskRow(taskRow, context) {
   const {
     profileMap,
@@ -219,7 +264,8 @@ function mapTaskRow(taskRow, context) {
       position: entry.position || 0,
       createdById: entry.created_by || "",
       updatedById: entry.updated_by || ""
-    }))
+    })),
+    detailLoaded: context.detailLoaded !== false
   };
 }
 
@@ -467,46 +513,21 @@ export async function fetchSupabaseBootstrapData(client) {
   }
 
   const taskIds = taskRows.map((row) => row.id);
-
-  const [
-    historyRows,
-    pipelineHistoryRows,
-    fiberStageHistoryRows,
-    photoRows,
-    fileRows,
-    materialItemRows,
-    workItemRows,
-    safetyRows
-  ] = await Promise.all([
-    fetchCollection(client, "task_history", taskIds, "*", "created_at"),
-    fetchCollection(client, "task_pipeline_history", taskIds, "*", "completed_at"),
-    fetchCollection(client, "task_fiber_stage_history", taskIds, "*", "completed_at"),
-    fetchCollection(client, "task_photos", taskIds, "*", "uploaded_at"),
-    fetchCollection(client, "task_files", taskIds, "*", "uploaded_at"),
-    fetchCollection(client, "task_materials", taskIds, "*", "created_at"),
-    fetchCollection(client, "task_work_items", taskIds, "*", "created_at"),
-    taskIds.length
-      ? assertNoError(await client.from("task_safety_items").select("*").in("task_id", taskIds).order("position", { ascending: true }), "Fetch task_safety_items")
-      : []
-  ]);
-
-  const [photoUrlMap, fileUrlMap] = await Promise.all([
-    createSignedUrlMap(client, "task-photos", photoRows),
-    createSignedUrlMap(client, "task-files", fileRows)
-  ]);
+  const pipelineHistoryRows = await fetchCollection(client, "task_pipeline_history", taskIds, "*", "completed_at");
 
   const context = {
     profileMap,
-    historyMap: groupByTaskId(historyRows),
+    historyMap: new Map(),
     pipelineHistoryMap: groupByTaskId(pipelineHistoryRows),
-    fiberStageHistoryMap: groupByTaskId(fiberStageHistoryRows),
-    photosMap: groupByTaskId(photoRows),
-    filesMap: groupByTaskId(fileRows),
-    materialsMap: groupByTaskId(materialItemRows),
-    workItemsMap: groupByTaskId(workItemRows),
-    safetyMap: groupByTaskId(safetyRows),
-    photoUrlMap,
-    fileUrlMap
+    fiberStageHistoryMap: new Map(),
+    photosMap: new Map(),
+    filesMap: new Map(),
+    materialsMap: new Map(),
+    workItemsMap: new Map(),
+    safetyMap: new Map(),
+    photoUrlMap: new Map(),
+    fileUrlMap: new Map(),
+    detailLoaded: false
   };
 
   return {
@@ -517,6 +538,60 @@ export async function fetchSupabaseBootstrapData(client) {
     workCatalog: workRows.map(mapWorkCatalogRow),
     tasks: taskRows.map((taskRow) => mapTaskRow(taskRow, context))
   };
+}
+
+export async function fetchSupabaseTaskDetail(client, taskId) {
+  const sessionData = await client.auth.getSession();
+  const session = sessionData.data.session;
+
+  if (!session) {
+    throw new Error("Δεν υπάρχει ενεργό session.");
+  }
+
+  const user = session.user;
+  const profileRow = assertNoError(
+    await client
+      .from("profiles")
+      .select("id, email, role, display_name, company_name, title, phone, is_active")
+      .eq("id", user.id)
+      .single(),
+    "Fetch current profile"
+  );
+
+  const currentProfile = mapProfileRow(profileRow);
+
+  let profilesRows = [];
+  if (currentProfile.role === "admin") {
+    profilesRows = assertNoError(
+      await client
+        .from("profiles")
+        .select("id, email, role, display_name, company_name, title, phone, is_active")
+        .eq("is_active", true)
+        .order("display_name", { ascending: true }),
+      "Fetch profiles"
+    );
+  } else {
+    profilesRows = [profileRow];
+  }
+
+  const taskRow = assertNoError(
+    await client.from("tasks").select("*").eq("id", taskId).single(),
+    "Fetch task detail"
+  );
+
+  const profiles = profilesRows.map(mapProfileRow);
+  const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+  if (!profileMap.has(currentProfile.id)) {
+    profileMap.set(currentProfile.id, currentProfile);
+  }
+
+  const relatedData = await fetchTaskRelatedData(client, [taskId]);
+
+  return mapTaskRow(taskRow, {
+    profileMap,
+    ...relatedData,
+    detailLoaded: true
+  });
 }
 
 export async function signInWithPassword(client, email, password) {
