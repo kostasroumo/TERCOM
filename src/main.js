@@ -321,6 +321,7 @@ async function ensureSupabaseTasksLoaded() {
     state.tasks = tasks.map(normalizeTask);
     runtime.tasksLoaded = true;
     saveState();
+    render();
   })();
 
   try {
@@ -345,6 +346,7 @@ async function ensureSupabaseCatalogsLoaded() {
     runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
     runtime.catalogsLoaded = true;
     saveState();
+    render();
   })();
 
   try {
@@ -742,6 +744,7 @@ async function ensureSupabaseTaskDetail(taskId) {
       : [normalizedTask, ...state.tasks];
     runtime.tasksLoaded = true;
     saveState();
+    render();
   })();
 
   runtime.activeTaskDetailLoads.set(taskId, loadPromise);
