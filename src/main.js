@@ -1926,7 +1926,12 @@ function updateTaskCore(taskId, formData) {
         if (!task.assignedUserId) {
           task.status = task.status === "cancelled" ? "cancelled" : "unassigned";
         } else if (assignmentChanged || ["unassigned", "cancelled"].includes(task.status)) {
-          task.status = "assigned";
+          const assignedToCurrentUser = currentUser.id === task.assignedUserId;
+          if (task.startDate && assignedToCurrentUser) {
+            task.status = "scheduled";
+          } else {
+            task.status = "assigned";
+          }
         } else if (task.status === "scheduled" && !task.startDate) {
           task.status = "assigned";
         } else if (partnerScheduledVisit && task.startDate) {
