@@ -956,15 +956,12 @@ function hasRequiredAutopsiaCertificate(task) {
     return true;
   }
 
-  return task.files.some((file) => {
-    const name = String(file.name || "").toLowerCase();
-    return ["πιστοποι", "certificate", "certif", "pistopoi"].some((keyword) => name.includes(keyword));
-  });
+  return task.files.length > 0;
 }
 
 function getMissingRequiredDocumentsReason(task) {
   if (task.pipeline === "autopsia" && !hasRequiredAutopsiaCertificate(task)) {
-    return "Η αυτοψία ολοκληρώθηκε, αλλά λείπει το απαιτούμενο πιστοποιητικό για να προχωρήσει σε επικύρωση.";
+    return "Η αυτοψία ολοκληρώθηκε, αλλά λείπει το απαιτούμενο έγγραφο για να προχωρήσει σε επικύρωση.";
   }
 
   if (task.pipeline === "leitourgies_inwn" && isLeitourgiesFinalStage(task) && !task.files.length) {
@@ -2622,11 +2619,6 @@ function handleWorkflow(taskId, action) {
       return;
     }
 
-    if (!task.photos.length && !task.files.length) {
-      window.alert("Πριν το αίτημα ακύρωσης πρέπει να υπάρχουν φωτογραφίες ή αρχεία τεκμηρίωσης.");
-      return;
-    }
-
     commitTaskChange(
       taskId,
       (nextTask) => {
@@ -2889,14 +2881,17 @@ async function handleFileUpload(input) {
 
   const taskId = input.getAttribute("data-task-id");
   const currentUser = getCurrentUser();
+  const fileKindSelector = document.querySelector(`[data-file-kind="${taskId}"]`);
+  const fileKind = fileKindSelector?.value || "general";
 
   try {
     const nextFiles =
       isSupabaseMode() && isAuthenticated()
-        ? await uploadTaskFiles(runtime.supabase, taskId, files, currentUser)
+        ? await uploadTaskFiles(runtime.supabase, taskId, files, currentUser, fileKind)
         : files.map((file) => ({
             id: createUuid(),
             name: file.name,
+            kind: fileKind,
             type: file.type || "application/octet-stream",
             size: file.size,
             uploadedById: currentUser.id,

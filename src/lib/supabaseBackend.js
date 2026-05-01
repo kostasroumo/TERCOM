@@ -252,6 +252,7 @@ function mapTaskRow(taskRow, context) {
     files: (filesMap.get(taskRow.id) || []).map((entry) => ({
       id: entry.id,
       name: entry.name,
+      kind: entry.document_kind || "general",
       type: entry.mime_type || "application/octet-stream",
       size: entry.size_bytes || 0,
       uploadedById: entry.uploaded_by || "",
@@ -425,7 +426,7 @@ function buildFileRows(task) {
     id: item.id,
     task_id: task.id,
     name: item.name || "",
-    document_kind: "general",
+    document_kind: item.kind || "general",
     mime_type: item.type || "application/octet-stream",
     size_bytes: Number(item.size) || 0,
     storage_path: item.storagePath || "",
@@ -731,7 +732,7 @@ export async function uploadTaskPhotos(client, taskId, files, category, currentU
   );
 }
 
-export async function uploadTaskFiles(client, taskId, files, currentUser) {
+export async function uploadTaskFiles(client, taskId, files, currentUser, fileKind = "general") {
   const now = new Date().toISOString();
 
   return Promise.all(
@@ -755,6 +756,7 @@ export async function uploadTaskFiles(client, taskId, files, currentUser) {
       return {
         id: assetId,
         name: file.name,
+        kind: fileKind,
         type: file.type || "application/octet-stream",
         size: file.size || 0,
         uploadedById: currentUser.id,

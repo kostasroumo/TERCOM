@@ -193,11 +193,21 @@ function renderFilesTab(task, permissions) {
         ${
           permissions.canUploadFiles
             ? `
-              <label class="button button--secondary upload-button">
-                ${icon("files")}
-                <span>Μεταφόρτωση αρχείων</span>
-                <input type="file" multiple data-file-input data-task-id="${escapeHtml(task.id)}" hidden />
-              </label>
+              <div class="upload-toolbar">
+                <label class="field field--compact">
+                  <span>Τύπος εγγράφου</span>
+                  <select data-file-kind="${escapeHtml(task.id)}">
+                    <option value="general">Γενικό έγγραφο</option>
+                    <option value="certificate">Πιστοποιητικό</option>
+                    <option value="report">Report / Παράδοση</option>
+                  </select>
+                </label>
+                <label class="button button--secondary upload-button">
+                  ${icon("files")}
+                  <span>Μεταφόρτωση αρχείων</span>
+                  <input type="file" multiple data-file-input data-task-id="${escapeHtml(task.id)}" hidden />
+                </label>
+              </div>
             `
             : ""
         }
@@ -212,7 +222,13 @@ function renderFilesTab(task, permissions) {
                     <article class="document-row">
                       <div class="document-row__title">
                         <strong>${escapeHtml(file.name)}</strong>
-                        <span>${escapeHtml(file.type || "file")}</span>
+                        <span>${escapeHtml(
+                          file.kind === "certificate"
+                            ? "Πιστοποιητικό"
+                            : file.kind === "report"
+                              ? "Report / Παράδοση"
+                              : file.type || "file"
+                        )}</span>
                       </div>
                       <div class="document-row__meta">
                         <span>${formatFileSize(file.size)}</span>
