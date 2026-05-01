@@ -44,7 +44,9 @@ const runtime = {
   workCatalog: [...WORK_CATALOG_SEED],
   authError: "",
   syncError: "",
-  syncQueue: Promise.resolve()
+  syncQueue: Promise.resolve(),
+  activeBootstrapLoad: null,
+  lastLoadedSessionToken: ""
 };
 
 let state = loadState();
@@ -130,9 +132,19 @@ async function bootstrap() {
       runtime.config = config;
       runtime.supabase = createSupabaseBrowserClient(config);
 
-      runtime.supabase.auth.onAuthStateChange(async (_event, session) => {
+      runtime.supabase.auth.onAuthStateChange(async (event, session) => {
         runtime.session = session;
         runtime.authError = "";
+
+        if (
+          event === "TOKEN_REFRESHED" &&
+          session?.user?.id &&
+          runtime.profile?.id === session.user.id
+        ) {
+          runtime.loading = false;
+          render();
+          return;
+        }
 
         if (session) {
           try {
@@ -143,6 +155,7 @@ async function bootstrap() {
         } else {
           runtime.profile = null;
           runtime.profiles = [];
+          runtime.lastLoadedSessionToken = "";
           state.currentRole = "admin";
           state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
           resetUiStateForLiveSession();
@@ -169,27 +182,56 @@ async function bootstrap() {
 }
 
 async function loadSupabaseState() {
-  const payload = await fetchSupabaseBootstrapData(runtime.supabase);
+  const currentToken = runtime.session?.access_token || "";
 
-  runtime.session = payload.session;
-  runtime.profile = payload.profile;
-  runtime.profiles = payload.profiles;
-  runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
-  state.tasks = payload.tasks.map(normalizeTask);
-  state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
-  state.currentRole = payload.profile?.role || "partner";
-  state.currentUserId = payload.profile?.id || "";
-  state.ui.showCreateModal = false;
-  state.ui.validationComment = "";
-  state.ui.cancellationComment = "";
   if (
-    state.currentRole === "admin" &&
-    state.ui.expandedAdminAssignee !== "unassigned" &&
-    !payload.profiles.some((profile) => profile.id === state.ui.expandedAdminAssignee)
+    runtime.activeBootstrapLoad &&
+    currentToken &&
+    runtime.lastLoadedSessionToken === currentToken &&
+    runtime.profile?.id === runtime.session?.user?.id
   ) {
-    state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
+    return runtime.activeBootstrapLoad;
   }
-  saveState();
+
+  if (
+    !runtime.activeBootstrapLoad &&
+    currentToken &&
+    runtime.lastLoadedSessionToken === currentToken &&
+    runtime.profile?.id === runtime.session?.user?.id
+  ) {
+    return;
+  }
+
+  runtime.activeBootstrapLoad = (async () => {
+    const payload = await fetchSupabaseBootstrapData(runtime.supabase);
+
+    runtime.session = payload.session;
+    runtime.profile = payload.profile;
+    runtime.profiles = payload.profiles;
+    runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
+    state.tasks = payload.tasks.map(normalizeTask);
+    state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
+    state.currentRole = payload.profile?.role || "partner";
+    state.currentUserId = payload.profile?.id || "";
+    state.ui.showCreateModal = false;
+    state.ui.validationComment = "";
+    state.ui.cancellationComment = "";
+    if (
+      state.currentRole === "admin" &&
+      state.ui.expandedAdminAssignee !== "unassigned" &&
+      !payload.profiles.some((profile) => profile.id === state.ui.expandedAdminAssignee)
+    ) {
+      state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
+    }
+    runtime.lastLoadedSessionToken = payload.session?.access_token || "";
+    saveState();
+  })();
+
+  try {
+    await runtime.activeBootstrapLoad;
+  } finally {
+    runtime.activeBootstrapLoad = null;
+  }
 }
 
 function isSupabaseMode() {
@@ -1478,12 +1520,9 @@ function handleSubmit(event) {
       String(formData.get("email") || ""),
       String(formData.get("password") || "")
     )
-      .then(async () => {
-        await withTimeout(loadSupabaseState(), 15000, "Η ανανέωση του προφίλ μετά τη σύνδεση");
+      .then(() => {
         resetUiStateForLiveSession();
         saveState();
-        runtime.loading = false;
-        render();
       })
       .catch((error) => {
         runtime.loading = false;

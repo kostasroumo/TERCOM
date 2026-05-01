@@ -336,30 +336,47 @@ security definer
 set search_path = public
 as $$
 declare
+  existing_profile public.profiles%rowtype;
+  raw_role text;
   resolved_role public.app_role;
   resolved_display_name text;
   resolved_company_name text;
   resolved_title text;
   resolved_phone text;
 begin
-  resolved_role := case lower(coalesce(new.raw_user_meta_data ->> 'role', 'partner'))
-    when 'admin' then 'admin'::public.app_role
-    else 'partner'::public.app_role
-  end;
+  select *
+  into existing_profile
+  from public.profiles
+  where id = new.id;
+
+  raw_role := lower(nullif(trim(new.raw_user_meta_data ->> 'role'), ''));
+
+  resolved_role := coalesce(
+    case raw_role
+      when 'admin' then 'admin'::public.app_role
+      when 'partner' then 'partner'::public.app_role
+      else null
+    end,
+    existing_profile.role,
+    'partner'::public.app_role
+  );
 
   resolved_display_name := coalesce(
     nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''),
     nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+    nullif(trim(existing_profile.display_name), ''),
     split_part(coalesce(new.email, 'user'), '@', 1)
   );
 
   resolved_company_name := coalesce(
     nullif(trim(new.raw_user_meta_data ->> 'company_name'), ''),
+    nullif(trim(existing_profile.company_name), ''),
     resolved_display_name
   );
 
   resolved_title := coalesce(
     nullif(trim(new.raw_user_meta_data ->> 'title'), ''),
+    nullif(trim(existing_profile.title), ''),
     case resolved_role
       when 'admin' then 'Administrator'
       else 'Field Partner'
@@ -368,6 +385,7 @@ begin
 
   resolved_phone := coalesce(
     nullif(trim(new.raw_user_meta_data ->> 'phone'), ''),
+    nullif(trim(existing_profile.phone), ''),
     coalesce(new.phone, '')
   );
 
