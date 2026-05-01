@@ -1,7 +1,7 @@
 import { getDefaultLeitourgiesInwnStage, LEITOURGIES_INWN_STAGE_META, PIPELINE_META, STATUS_META } from "../data/mockData.js";
 import { escapeHtml, formatDate } from "../lib/helpers.js";
 
-export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
+export function TaskTable({ tasks, filters, cities, pipelines, technicians, currentRole }) {
   return `
     <section class="surface">
       <div class="section-head">
@@ -46,19 +46,25 @@ export function TaskTable({ tasks, filters, cities, pipelines, technicians }) {
           </select>
         </label>
 
-        <label class="field">
-          <span>Ανάθεση</span>
-          <select data-filter="technician">
-            <option value="all"${filters.technician === "all" ? " selected" : ""}>Όλοι</option>
-            <option value="unassigned"${filters.technician === "unassigned" ? " selected" : ""}>Χωρίς ανάθεση</option>
-            ${technicians
-              .map(
-                (technician) =>
-                  `<option value="${escapeHtml(technician.id)}"${filters.technician === technician.id ? " selected" : ""}>${escapeHtml(technician.name)}</option>`
-              )
-              .join("")}
-          </select>
-        </label>
+        ${
+          currentRole === "admin"
+            ? `
+              <label class="field">
+                <span>Ανάθεση</span>
+                <select data-filter="technician">
+                  <option value="all"${filters.technician === "all" ? " selected" : ""}>Όλοι</option>
+                  <option value="unassigned"${filters.technician === "unassigned" ? " selected" : ""}>Χωρίς ανάθεση</option>
+                  ${technicians
+                    .map(
+                      (technician) =>
+                        `<option value="${escapeHtml(technician.id)}"${filters.technician === technician.id ? " selected" : ""}>${escapeHtml(technician.name)}</option>`
+                    )
+                    .join("")}
+                </select>
+              </label>
+            `
+            : ""
+        }
       </div>
 
       <div class="table-wrap">

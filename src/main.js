@@ -124,6 +124,14 @@ function resetUiStateForLiveSession() {
   state.ui.selectedWorkId = "";
 }
 
+function resetTaskFilters() {
+  state.filters.search = "";
+  state.filters.status = "all";
+  state.filters.pipeline = "all";
+  state.filters.city = "all";
+  state.filters.technician = "all";
+}
+
 function withTimeout(promise, ms, label) {
   return Promise.race([
     promise,
@@ -1805,6 +1813,9 @@ function handleClick(event) {
       state.filters.status = filterStatus || "all";
       state.filters.pipeline = filterPipeline || "all";
       state.filters.technician = filterTechnician || "all";
+    }
+    if (!hasDashboardFilters && nextRoute === "#/tasks") {
+      resetTaskFilters();
     }
     if (hasDashboardFilters) {
       saveState();
