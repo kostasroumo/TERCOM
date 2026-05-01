@@ -95,6 +95,22 @@ function toNullableIsoDateTime(value) {
   return isoValue || null;
 }
 
+function normalizeDashboardBootstrapPayload(payload) {
+  const rawProfile = payload?.profile && payload.profile !== "null" ? payload.profile : null;
+
+  return {
+    profile: rawProfile ? mapProfileRow(rawProfile) : null,
+    profiles: Array.isArray(payload?.profiles) ? payload.profiles.map(mapProfileRow) : [],
+    sectionTotals: Array.isArray(payload?.sectionTotals) ? payload.sectionTotals : [],
+    currentPipelineTotals: Array.isArray(payload?.currentPipelineTotals) ? payload.currentPipelineTotals : [],
+    statusCounts: Array.isArray(payload?.statusCounts) ? payload.statusCounts : [],
+    queues: {
+      cancellationRequested: Array.isArray(payload?.queues?.cancellationRequested) ? payload.queues.cancellationRequested : [],
+      cancelled: Array.isArray(payload?.queues?.cancelled) ? payload.queues.cancelled : []
+    }
+  };
+}
+
 async function fetchTaskRelatedData(client, taskIds) {
   const [
     historyRows,
@@ -479,6 +495,26 @@ export async function fetchSupabaseBootstrapData(client) {
     };
   }
 
+  try {
+    const dashboardPayload = assertNoError(await client.rpc("dashboard_bootstrap_v1"), "Fetch dashboard bootstrap");
+    const normalizedDashboard = normalizeDashboardBootstrapPayload(dashboardPayload);
+
+    if (normalizedDashboard.profile) {
+      return {
+        session,
+        profile: normalizedDashboard.profile,
+        profiles: normalizedDashboard.profiles,
+        inventory: [],
+        workCatalog: [],
+        tasks: [],
+        tasksLoaded: false,
+        dashboardSummary: normalizedDashboard
+      };
+    }
+  } catch {
+    // Fall back to direct table reads if the RPC hasn't been installed yet.
+  }
+
   const user = session.user;
   const profileRow = assertNoError(
     await client
@@ -539,7 +575,51 @@ export async function fetchSupabaseBootstrapData(client) {
     profiles,
     inventory: [],
     workCatalog: [],
-    tasks: taskRows.map((taskRow) => mapTaskRow(taskRow, context))
+    tasks: taskRows.map((taskRow) => mapTaskRow(taskRow, context)),
+    tasksLoaded: true,
+    dashboardSummary: null
+  };
+}
+
+export async function fetchSupabaseTaskSummaries(client, profiles = []) {
+  const taskRows = assertNoError(await client.from("tasks").select("*").order("updated_at", { ascending: false }), "Fetch tasks");
+  const taskIds = taskRows.map((row) => row.id);
+  const pipelineHistoryRows = await fetchCollection(client, "task_pipeline_history", taskIds, "*", "completed_at");
+  const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
+
+  return taskRows.map((taskRow) =>
+    mapTaskRow(taskRow, {
+      profileMap,
+      historyMap: new Map(),
+      pipelineHistoryMap: groupByTaskId(pipelineHistoryRows),
+      fiberStageHistoryMap: new Map(),
+      photosMap: new Map(),
+      filesMap: new Map(),
+      materialsMap: new Map(),
+      workItemsMap: new Map(),
+      safetyMap: new Map(),
+      photoUrlMap: new Map(),
+      fileUrlMap: new Map(),
+      detailLoaded: false
+    })
+  );
+}
+
+export async function fetchSupabaseCatalogs(client) {
+  const [materialRows, workRows] = await Promise.all([
+    assertNoError(
+      await client.from("material_catalog").select("id, code, description, unit").eq("is_active", true).order("code", { ascending: true }),
+      "Fetch material catalog"
+    ),
+    assertNoError(
+      await client.from("work_catalog").select("id, article, description").eq("is_active", true).order("article", { ascending: true }),
+      "Fetch work catalog"
+    )
+  ]);
+
+  return {
+    inventory: materialRows.map(mapMaterialCatalogRow),
+    workCatalog: workRows.map(mapWorkCatalogRow)
   };
 }
 

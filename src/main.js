@@ -22,6 +22,8 @@ import { hasSupabaseRuntimeConfig, loadRuntimeConfig } from "./lib/runtimeConfig
 import {
   createSupabaseBrowserClient,
   fetchSupabaseBootstrapData,
+  fetchSupabaseCatalogs,
+  fetchSupabaseTaskSummaries,
   fetchSupabaseTaskDetail,
   persistTaskToSupabase,
   signInWithPassword,
@@ -43,13 +45,18 @@ const runtime = {
   session: null,
   profile: null,
   profiles: [],
+  dashboardSummary: null,
+  tasksLoaded: false,
+  catalogsLoaded: false,
   workCatalog: [...WORK_CATALOG_SEED],
   authError: "",
   syncError: "",
   syncQueue: Promise.resolve(),
   activeBootstrapLoad: null,
   lastLoadedSessionToken: "",
-  activeTaskDetailLoads: new Map()
+  activeTaskDetailLoads: new Map(),
+  activeTaskListLoad: null,
+  activeCatalogLoad: null
 };
 
 let state = loadState();
@@ -212,8 +219,12 @@ async function loadSupabaseState() {
     runtime.session = payload.session;
     runtime.profile = payload.profile;
     runtime.profiles = payload.profiles;
+    runtime.dashboardSummary =
+      payload.dashboardSummary || buildDashboardSummaryFromTasks(payload.tasks || [], payload.profiles || [], payload.profile || null);
+    runtime.tasksLoaded = !!payload.tasksLoaded;
+    runtime.catalogsLoaded = !!((payload.workCatalog && payload.workCatalog.length) || (payload.inventory && payload.inventory.length));
     runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
-    state.tasks = payload.tasks.map(normalizeTask);
+    state.tasks = (payload.tasks || []).map(normalizeTask);
     state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
     state.currentRole = payload.profile?.role || "partner";
     state.currentUserId = payload.profile?.id || "";
@@ -238,6 +249,69 @@ async function loadSupabaseState() {
   }
 }
 
+async function ensureSupabaseTasksLoaded() {
+  if (!isSupabaseMode() || !isAuthenticated() || runtime.tasksLoaded) {
+    return;
+  }
+
+  if (runtime.activeTaskListLoad) {
+    return runtime.activeTaskListLoad;
+  }
+
+  runtime.activeTaskListLoad = (async () => {
+    const tasks = await fetchSupabaseTaskSummaries(runtime.supabase, runtime.profiles);
+    state.tasks = tasks.map(normalizeTask);
+    runtime.tasksLoaded = true;
+    saveState();
+  })();
+
+  try {
+    await runtime.activeTaskListLoad;
+  } finally {
+    runtime.activeTaskListLoad = null;
+  }
+}
+
+async function ensureSupabaseCatalogsLoaded() {
+  if (!isSupabaseMode() || !isAuthenticated() || runtime.catalogsLoaded) {
+    return;
+  }
+
+  if (runtime.activeCatalogLoad) {
+    return runtime.activeCatalogLoad;
+  }
+
+  runtime.activeCatalogLoad = (async () => {
+    const payload = await fetchSupabaseCatalogs(runtime.supabase);
+    state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
+    runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
+    runtime.catalogsLoaded = true;
+    saveState();
+  })();
+
+  try {
+    await runtime.activeCatalogLoad;
+  } finally {
+    runtime.activeCatalogLoad = null;
+  }
+}
+
+async function refreshSupabaseDashboardSummary() {
+  if (!isSupabaseMode() || !isAuthenticated()) {
+    return;
+  }
+
+  const payload = await fetchSupabaseBootstrapData(runtime.supabase);
+  if (payload.profile) {
+    runtime.profile = payload.profile;
+  }
+  if (payload.profiles?.length) {
+    runtime.profiles = payload.profiles;
+  }
+  runtime.dashboardSummary =
+    payload.dashboardSummary || buildDashboardSummaryFromTasks(state.tasks, runtime.profiles, runtime.profile);
+}
+
 function isSupabaseMode() {
   return runtime.mode === "supabase";
 }
@@ -248,6 +322,110 @@ function isAuthenticated() {
 
 function getRuntimeAssignableProfiles() {
   return (runtime.profiles || []).filter((profile) => profile.isActive !== false);
+}
+
+function createEmptyDashboardSummary() {
+  return {
+    sectionTotals: [],
+    currentPipelineTotals: [],
+    statusCounts: [],
+    queues: {
+      cancellationRequested: [],
+      cancelled: []
+    }
+  };
+}
+
+function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = null) {
+  const visibleTasks =
+    currentProfile?.role === "admin"
+      ? tasks
+      : tasks.filter((task) => task.assignedUserId === currentProfile?.id && task.status !== "cancelled");
+
+  const sectionTotalsMap = new Map();
+  const currentPipelineTotalsMap = new Map();
+  const statusCountsMap = new Map();
+
+  const putCount = (map, key, increment = 1) => {
+    map.set(key, (map.get(key) || 0) + increment);
+  };
+
+  visibleTasks.forEach((task) => {
+    const assigneeId = task.assignedUserId || "unassigned";
+    const shouldCountInUnassigned = !!task.assignedUserId || task.status !== "cancelled";
+
+    if (shouldCountInUnassigned) {
+      putCount(sectionTotalsMap, assigneeId);
+      putCount(currentPipelineTotalsMap, `${assigneeId}::${task.pipeline}`);
+
+      if (task.status === "completed") {
+        putCount(statusCountsMap, `${assigneeId}::${task.pipeline}::completed`);
+      } else {
+        putCount(statusCountsMap, `${assigneeId}::${task.pipeline}::${task.status}`);
+      }
+
+      (task.pipelineHistory || []).forEach((entry) => {
+        putCount(statusCountsMap, `${assigneeId}::${entry.pipeline}::completed`);
+      });
+    }
+  });
+
+  return {
+    profiles,
+    sectionTotals: [...sectionTotalsMap.entries()].map(([assigneeId, total]) => ({ assigneeId, total })),
+    currentPipelineTotals: [...currentPipelineTotalsMap.entries()].map(([key, total]) => {
+      const [assigneeId, pipeline] = key.split("::");
+      return { assigneeId, pipeline, total };
+    }),
+    statusCounts: [...statusCountsMap.entries()].map(([key, count]) => {
+      const [assigneeId, pipeline, status] = key.split("::");
+      return { assigneeId, pipeline, status, count };
+    }),
+    queues: {
+      cancellationRequested: visibleTasks
+        .filter((task) => task.flags?.cancellationRequested)
+        .map((task) => ({
+          id: task.id,
+          title: task.title,
+          address: task.address,
+          city: task.city,
+          pipeline: task.pipeline,
+          status: task.status,
+          assignedUserName: task.assignedUserName || ""
+        })),
+      cancelled: visibleTasks
+        .filter((task) => task.status === "cancelled")
+        .map((task) => ({
+          id: task.id,
+          title: task.title,
+          address: task.address,
+          city: task.city,
+          pipeline: task.pipeline,
+          status: task.status,
+          assignedUserName: task.assignedUserName || ""
+        }))
+    }
+  };
+}
+
+function getDashboardSummary() {
+  if (runtime.dashboardSummary) {
+    return runtime.dashboardSummary;
+  }
+
+  return buildDashboardSummaryFromTasks(state.tasks, runtime.profiles, runtime.profile);
+}
+
+function getSummarySectionTotal(summary, assigneeId) {
+  return summary.sectionTotals.find((entry) => entry.assigneeId === assigneeId)?.total || 0;
+}
+
+function getSummaryCurrentPipelineTotal(summary, assigneeId, pipelineKey) {
+  return summary.currentPipelineTotals.find((entry) => entry.assigneeId === assigneeId && entry.pipeline === pipelineKey)?.total || 0;
+}
+
+function getSummaryStatusCount(summary, assigneeId, pipelineKey, statusKey) {
+  return summary.statusCounts.find((entry) => entry.assigneeId === assigneeId && entry.pipeline === pipelineKey && entry.status === statusKey)?.count || 0;
 }
 
 function renderAuthGate() {
@@ -359,6 +537,7 @@ async function queueSupabaseTaskSync(nextTask, previousTask, newHistoryEntry = n
         currentUserId: runtime.profile?.id || "",
         newHistoryEntry
       });
+      await refreshSupabaseDashboardSummary();
       runtime.syncError = "";
       state.tasks = state.tasks.map((task) =>
         task.id === nextTask.id
@@ -495,7 +674,12 @@ async function ensureSupabaseTaskDetail(taskId) {
 
   const loadPromise = (async () => {
     const fullTask = await fetchSupabaseTaskDetail(runtime.supabase, taskId);
-    state.tasks = state.tasks.map((task) => (task.id === taskId ? normalizeTask(fullTask) : task));
+    const normalizedTask = normalizeTask(fullTask);
+    const exists = state.tasks.some((task) => task.id === taskId);
+    state.tasks = exists
+      ? state.tasks.map((task) => (task.id === taskId ? normalizedTask : task))
+      : [normalizedTask, ...state.tasks];
+    runtime.tasksLoaded = true;
     saveState();
   })();
 
@@ -886,6 +1070,29 @@ function renderPipelineStatusSections(tasks, technicianFilter = "") {
   }).join("");
 }
 
+function renderPipelineStatusSectionsFromSummary(summary, assigneeId = "") {
+  return PIPELINE_ORDER.map((pipelineKey) => {
+    const counts = STATUS_ORDER.map((status) => [status, getSummaryStatusCount(summary, assigneeId || "unassigned", pipelineKey, status)]);
+    const currentPipelineTotal = getSummaryCurrentPipelineTotal(summary, assigneeId || "unassigned", pipelineKey);
+
+    return `
+      <section class="pipeline-section pipeline-section--nested">
+        <div class="pipeline-section__head">
+          <div>
+            <p class="eyebrow">Pipeline</p>
+            <h2>${escapeHtml(PIPELINE_META[pipelineKey].label)}</h2>
+            <p class="section-copy">${escapeHtml(PIPELINE_META[pipelineKey].hint)}</p>
+          </div>
+          <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${currentPipelineTotal} τρέχουσες</span>
+        </div>
+        <div class="status-grid">
+          ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey, assigneeId)).join("")}
+        </div>
+      </section>
+    `;
+  }).join("");
+}
+
 function renderAdminDashboard(visibleTasks) {
   const assigneeSections = [
     ...getAssignableUsers().map((assignee) => ({
@@ -943,6 +1150,68 @@ function renderAdminDashboard(visibleTasks) {
           "Ακυρωμένες Εργασίες",
           "Εργασίες που ακυρώθηκαν και μπορούν να ανοιχτούν ξανά για νέα ανάθεση.",
           visibleTasks.filter((task) => task.status === "cancelled"),
+          "Δεν υπάρχουν ακυρωμένες εργασίες.",
+          "cancelled"
+        )}
+      </section>
+    </section>
+  `;
+}
+
+function renderAdminDashboardFromSummary(summary) {
+  const assigneeSections = [
+    ...getAssignableUsers().map((assignee) => ({
+      id: assignee.id,
+      label: assignee.name,
+      copy: "Επισκόπηση pipelines και queues για τον συγκεκριμένο υπεύθυνο ανάθεσης."
+    })),
+    {
+      id: "unassigned",
+      label: "Χωρίς ανάθεση",
+      copy: "Εργασίες που δεν έχουν δοθεί ακόμη σε συνεργάτη."
+    }
+  ];
+
+  return `
+    <section class="assignee-dashboard">
+      ${assigneeSections
+        .map(
+          (section) => `
+            <section class="surface assignee-section${state.ui.expandedAdminAssignee === section.id ? " is-expanded" : ""}">
+              <button class="assignee-toggle" type="button" data-toggle-admin-assignee="${escapeHtml(section.id)}">
+                <div class="assignee-toggle__copy">
+                  <p class="eyebrow">Admin View</p>
+                  <h2>${escapeHtml(section.label)}</h2>
+                  <p class="section-copy">${escapeHtml(section.copy)}</p>
+                </div>
+                <div class="assignee-toggle__meta">
+                  <span class="assignee-toggle__count">${getSummarySectionTotal(summary, section.id)}</span>
+                  <span class="assignee-toggle__label">εργασίες</span>
+                  <span class="assignee-toggle__chevron">${state.ui.expandedAdminAssignee === section.id ? "−" : "+"}</span>
+                </div>
+              </button>
+              ${
+                state.ui.expandedAdminAssignee === section.id
+                  ? `<div class="assignee-section__body">${renderPipelineStatusSectionsFromSummary(summary, section.id)}</div>`
+                  : ""
+              }
+            </section>
+          `
+        )
+        .join("")}
+
+      <section class="overview-grid">
+        ${renderAdminQueue(
+          "Αιτήματα Ακύρωσης",
+          "Όλα τα ενεργά αιτήματα ακύρωσης που περιμένουν ενέργεια από admin.",
+          summary.queues.cancellationRequested || [],
+          "Δεν υπάρχουν ενεργά αιτήματα ακύρωσης.",
+          ""
+        )}
+        ${renderAdminQueue(
+          "Ακυρωμένες Εργασίες",
+          "Εργασίες που ακυρώθηκαν και μπορούν να ανοιχτούν ξανά για νέα ανάθεση.",
+          summary.queues.cancelled || [],
           "Δεν υπάρχουν ακυρωμένες εργασίες.",
           "cancelled"
         )}
@@ -1104,6 +1373,20 @@ function render() {
 }
 
 function renderView(route, visibleTasks, filteredTasks, currentUser) {
+  if (isSupabaseMode() && (route.view === "tasks" || route.view === "report") && !runtime.tasksLoaded) {
+    ensureSupabaseTasksLoaded().catch((error) => {
+      runtime.syncError = error.message;
+      render();
+    });
+
+    return `
+      <section class="surface empty-screen">
+        <h2>Φόρτωση λίστας εργασιών</h2>
+        <p>Ετοιμάζουμε τις εργασίες από τη βάση δεδομένων μόνο για τη συγκεκριμένη οθόνη.</p>
+      </section>
+    `;
+  }
+
   if (route.view === "report") {
     return renderOpenTasksReport(visibleTasks.filter((task) => !["completed", "cancelled"].includes(task.status)));
   }
@@ -1123,12 +1406,34 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
   if (route.view === "detail") {
     const task = getTaskById(route.taskId);
     if (!task) {
+      if (isSupabaseMode()) {
+        ensureSupabaseCatalogsLoaded().catch(() => {});
+        ensureSupabaseTaskDetail(route.taskId).catch((error) => {
+          runtime.syncError = error.message;
+          render();
+        });
+
+        return `
+          <section class="surface empty-screen">
+            <h2>Φόρτωση εργασίας</h2>
+            <p>Ανακτούμε τα στοιχεία της εργασίας από τη βάση δεδομένων.</p>
+          </section>
+        `;
+      }
+
       return `
         <section class="surface empty-screen">
           <h2>Η εργασία δεν βρέθηκε</h2>
           <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
         </section>
       `;
+    }
+
+    if (isSupabaseMode() && !runtime.catalogsLoaded) {
+      ensureSupabaseCatalogsLoaded().catch((error) => {
+        runtime.syncError = error.message;
+        render();
+      });
     }
 
     if (state.currentRole === "partner" && !visibleTasks.some((visibleTask) => visibleTask.id === task.id)) {
@@ -1176,7 +1481,18 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
   }
 
   if (state.currentRole === "admin") {
+    if (isSupabaseMode()) {
+      return renderAdminDashboardFromSummary(getDashboardSummary());
+    }
     return renderAdminDashboard(visibleTasks);
+  }
+
+  if (isSupabaseMode()) {
+    return `
+      <section class="pipeline-dashboard">
+        ${renderPipelineStatusSectionsFromSummary(getDashboardSummary(), currentUser.id)}
+      </section>
+    `;
   }
 
   return `
