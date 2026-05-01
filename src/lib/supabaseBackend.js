@@ -774,10 +774,19 @@ export async function persistTaskToSupabase(client, task, previousTask, options 
     newHistoryEntry = null
   } = options;
 
-  assertNoError(
-    await client.from("tasks").upsert(buildTaskCoreRow(task, currentUserId), { onConflict: "id" }),
-    "Persist task"
-  );
+  const taskRow = buildTaskCoreRow(task, currentUserId);
+
+  if (previousTask) {
+    assertNoError(
+      await client.from("tasks").update(taskRow).eq("id", task.id),
+      "Persist task"
+    );
+  } else {
+    assertNoError(
+      await client.from("tasks").insert(taskRow),
+      "Persist task"
+    );
+  }
 
   if (!previousTask || JSON.stringify(previousTask.photos || []) !== JSON.stringify(task.photos || [])) {
     await syncChildCollection(client, "task_photos", task.id, buildPhotoRows(task));
