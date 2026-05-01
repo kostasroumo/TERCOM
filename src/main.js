@@ -297,6 +297,20 @@ async function queueSupabaseTaskSync(nextTask, previousTask, newHistoryEntry = n
     return;
   }
 
+  state.tasks = state.tasks.map((task) =>
+    task.id === nextTask.id
+      ? {
+          ...task,
+          flags: {
+            ...task.flags,
+            apiStatus: "PENDING-SYNC"
+          }
+        }
+      : task
+  );
+  saveState();
+  render();
+
   runtime.syncQueue = runtime.syncQueue
     .then(async () => {
       await persistTaskToSupabase(runtime.supabase, nextTask, previousTask, {
@@ -304,9 +318,36 @@ async function queueSupabaseTaskSync(nextTask, previousTask, newHistoryEntry = n
         newHistoryEntry
       });
       runtime.syncError = "";
+      state.tasks = state.tasks.map((task) =>
+        task.id === nextTask.id
+          ? {
+              ...task,
+              flags: {
+                ...task.flags,
+                apiStatus: "SYNCED"
+              }
+            }
+          : task
+      );
+      saveState();
+      render();
     })
     .catch((error) => {
       runtime.syncError = error.message;
+      state.tasks = state.tasks.map((task) =>
+        task.id === nextTask.id
+          ? {
+              ...task,
+              flags: {
+                ...task.flags,
+                apiStatus: "SYNC-FAILED"
+              }
+            }
+          : task
+      );
+      saveState();
+      console.error("Supabase task sync failed:", error);
+      window.alert(`Η αποθήκευση στη βάση απέτυχε: ${error.message}`);
       render();
     });
 
