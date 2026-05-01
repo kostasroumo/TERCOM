@@ -90,6 +90,11 @@ function mapWorkCatalogRow(row) {
   };
 }
 
+function toNullableIsoDateTime(value) {
+  const isoValue = toIsoDateTime(value);
+  return isoValue || null;
+}
+
 async function fetchTaskRelatedData(client, taskIds) {
   const [
     historyRows,
@@ -289,10 +294,10 @@ function buildTaskCoreRow(task, currentUserId) {
     project_name: task.projectName || "",
     resource_team: task.resourceTeam || "",
     assigned_user_id: task.assignedUserId || null,
-    assigned_at: toIsoDateTime(task.assignedAt),
-    start_date: toIsoDateTime(task.startDate),
-    end_date: toIsoDateTime(task.endDate),
-    completed_at: toIsoDateTime(task.completedAt),
+    assigned_at: toNullableIsoDateTime(task.assignedAt),
+    start_date: toNullableIsoDateTime(task.startDate),
+    end_date: toNullableIsoDateTime(task.endDate),
+    completed_at: toNullableIsoDateTime(task.completedAt),
     admin_notes: task.adminNotes || "",
     partner_notes: task.partnerNotes || "",
     api_status: task.flags?.apiStatus || "SYNCED",
@@ -301,7 +306,7 @@ function buildTaskCoreRow(task, currentUserId) {
     smart_readiness: task.flags?.smartReadiness || "Σε αναμονή",
     pending_document_reason: task.flags?.pendingDocumentReason || "",
     cancellation_requested: !!task.flags?.cancellationRequested,
-    cancellation_requested_at: toIsoDateTime(task.flags?.cancellationRequestedAt),
+    cancellation_requested_at: toNullableIsoDateTime(task.flags?.cancellationRequestedAt),
     cancellation_requested_by: task.flags?.cancellationRequestedById || null,
     cancellation_reason: task.flags?.cancellationReason || "",
     created_by: task.createdById || currentUserId || null,
