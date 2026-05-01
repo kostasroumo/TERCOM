@@ -504,10 +504,8 @@ export async function fetchSupabaseBootstrapData(client) {
       .eq("id", currentProfile.id);
   }
 
-  const [profilesRows, materialRows, workRows, taskRows] = await Promise.all([
+  const [profilesRows, taskRows] = await Promise.all([
     assertNoError(await profilesQuery, "Fetch profiles"),
-    assertNoError(await client.from("material_catalog").select("id, code, description, unit").eq("is_active", true).order("code", { ascending: true }), "Fetch material catalog"),
-    assertNoError(await client.from("work_catalog").select("id, article, description").eq("is_active", true).order("article", { ascending: true }), "Fetch work catalog"),
     assertNoError(await client.from("tasks").select("*").order("updated_at", { ascending: false }), "Fetch tasks")
   ]);
 
@@ -539,8 +537,8 @@ export async function fetchSupabaseBootstrapData(client) {
     session,
     profile: currentProfile,
     profiles,
-    inventory: materialRows.map(mapMaterialCatalogRow),
-    workCatalog: workRows.map(mapWorkCatalogRow),
+    inventory: [],
+    workCatalog: [],
     tasks: taskRows.map((taskRow) => mapTaskRow(taskRow, context))
   };
 }

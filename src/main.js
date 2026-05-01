@@ -39,6 +39,7 @@ const runtime = {
   config: null,
   supabase: null,
   loading: true,
+  authPending: false,
   session: null,
   profile: null,
   profiles: [],
@@ -164,6 +165,7 @@ async function bootstrap() {
           saveState();
         }
 
+        runtime.authPending = false;
         runtime.loading = false;
         render();
       });
@@ -251,11 +253,21 @@ function getRuntimeAssignableProfiles() {
 function renderAuthGate() {
   if (runtime.loading) {
     app.innerHTML = `
-      <section class="auth-screen">
-        <div class="surface auth-card">
-          <p class="eyebrow">Supabase</p>
-          <h1>Φόρτωση περιβάλλοντος</h1>
-          <p>Ετοιμάζουμε τη σύνδεση με τη βάση δεδομένων.</p>
+      <section class="auth-screen auth-screen--loading">
+        <div class="auth-layout auth-layout--compact">
+          <div class="surface auth-brand auth-brand--loading">
+            <div class="auth-brand__hero">
+              <div class="auth-brand__mark">
+                <img src="${escapeHtml(COMPANY_LOGO_SRC)}" alt="TERCOM" />
+              </div>
+              <div>
+                <p class="eyebrow">TERCOM Live Workspace</p>
+                <h1>Σύνδεση στο περιβάλλον</h1>
+                <p>Ετοιμάζουμε το workspace και ελέγχουμε το session με τη βάση δεδομένων.</p>
+              </div>
+            </div>
+            <div class="auth-progress" aria-hidden="true"><span></span></div>
+          </div>
         </div>
       </section>
     `;
@@ -265,25 +277,55 @@ function renderAuthGate() {
   if (isSupabaseMode() && !isAuthenticated()) {
     app.innerHTML = `
       <section class="auth-screen">
-        <form class="surface auth-card" data-login-form>
-          <p class="eyebrow">TERCOM Access</p>
-          <h1>Σύνδεση στο σύστημα</h1>
-          <p>Χρησιμοποίησε τον λογαριασμό Supabase που δημιούργησες για να μπεις στο live περιβάλλον.</p>
-          <label class="field">
-            <span>Email</span>
-            <input type="email" name="email" autocomplete="username" required />
-          </label>
-          <label class="field">
-            <span>Κωδικός</span>
-            <input type="password" name="password" autocomplete="current-password" required />
-          </label>
-          ${runtime.authError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.authError)}</p></div>` : ""}
-          ${runtime.syncError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.syncError)}</p></div>` : ""}
-          <div class="form-actions">
-            <button class="button" type="submit">Σύνδεση</button>
-            ${runtime.syncError ? `<button class="button button--ghost" type="button" data-retry-bootstrap>Ξανά προσπάθεια</button>` : ""}
-          </div>
-        </form>
+        <div class="auth-layout">
+          <aside class="surface auth-brand">
+            <div class="auth-brand__hero">
+              <div class="auth-brand__mark">
+                <img src="${escapeHtml(COMPANY_LOGO_SRC)}" alt="TERCOM" />
+              </div>
+              <div>
+                <p class="eyebrow">TERCOM Access</p>
+                <h1>Field Ops Control</h1>
+                <p>Ενιαίο περιβάλλον για ανάθεση, εκτέλεση, παρακολούθηση και επικύρωση εργασιών πεδίου.</p>
+              </div>
+            </div>
+            <div class="auth-brand__chips">
+              <span class="pill pill--pipeline-autopsia">Αυτοψία</span>
+              <span class="pill pill--pipeline-leitourgies-inwn">Λειτουργίες Ινών</span>
+              <span class="pill pill--completed">Βλάβες / Συντήρηση</span>
+            </div>
+            <dl class="auth-brand__facts">
+              <div><dt>Live βάση</dt><dd>Supabase</dd></div>
+              <div><dt>Πρόσβαση</dt><dd>Role-based</dd></div>
+              <div><dt>Ροή</dt><dd>Task pipelines</dd></div>
+            </dl>
+          </aside>
+
+          <form class="surface auth-panel" data-login-form>
+            <p class="eyebrow">Σύνδεση χρηστών</p>
+            <h1>Σύνδεση στο σύστημα</h1>
+            <p>Χρησιμοποίησε τον λογαριασμό Supabase για να μπεις στο live περιβάλλον της TERCOM.</p>
+            <label class="field">
+              <span>Email</span>
+              <input type="email" name="email" autocomplete="username" required ${runtime.authPending ? "disabled" : ""} />
+            </label>
+            <label class="field">
+              <span>Κωδικός</span>
+              <input type="password" name="password" autocomplete="current-password" required ${runtime.authPending ? "disabled" : ""} />
+            </label>
+            ${
+              runtime.authPending
+                ? `<div class="auth-inline-status"><span class="auth-inline-status__dot"></span><p>Γίνεται έλεγχος στοιχείων και φόρτωση περιβάλλοντος...</p></div>`
+                : ""
+            }
+            ${runtime.authError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.authError)}</p></div>` : ""}
+            ${runtime.syncError ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(runtime.syncError)}</p></div>` : ""}
+            <div class="form-actions auth-form-actions">
+              <button class="button" type="submit" ${runtime.authPending ? "disabled" : ""}>${runtime.authPending ? "Σύνδεση..." : "Σύνδεση"}</button>
+              ${runtime.syncError ? `<button class="button button--ghost" type="button" data-retry-bootstrap">Ξανά προσπάθεια</button>` : ""}
+            </div>
+          </form>
+        </div>
       </section>
     `;
     return true;
@@ -1599,7 +1641,7 @@ function handleSubmit(event) {
     const formData = new FormData(loginForm);
     runtime.authError = "";
     runtime.syncError = "";
-    runtime.loading = true;
+    runtime.authPending = true;
     render();
 
     signInWithPassword(
@@ -1612,7 +1654,7 @@ function handleSubmit(event) {
         saveState();
       })
       .catch((error) => {
-        runtime.loading = false;
+        runtime.authPending = false;
         runtime.authError = error.message;
         render();
       });

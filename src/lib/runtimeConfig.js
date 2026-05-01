@@ -13,22 +13,6 @@ export function hasSupabaseRuntimeConfig(config) {
 
 export async function loadRuntimeConfig() {
   try {
-    const response = await fetch("/.netlify/functions/public-config", {
-      cache: "no-store"
-    });
-
-    if (response.ok) {
-      const payload = await response.json();
-      const normalized = normalizeConfig(payload);
-      if (hasSupabaseRuntimeConfig(normalized)) {
-        return normalized;
-      }
-    }
-  } catch {
-    // Ignore and continue to local fallback.
-  }
-
-  try {
     const rawLocal = localStorage.getItem(LOCAL_CONFIG_KEY);
     if (rawLocal) {
       const normalized = normalizeConfig(JSON.parse(rawLocal));
@@ -38,6 +22,27 @@ export async function loadRuntimeConfig() {
     }
   } catch {
     // Ignore malformed local config.
+  }
+
+  try {
+    const response = await fetch("/.netlify/functions/public-config", {
+      cache: "default"
+    });
+
+    if (response.ok) {
+      const payload = await response.json();
+      const normalized = normalizeConfig(payload);
+      if (hasSupabaseRuntimeConfig(normalized)) {
+        try {
+          localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(normalized));
+        } catch {
+          // Ignore storage quota failures for the runtime config cache.
+        }
+        return normalized;
+      }
+    }
+  } catch {
+    // Ignore and continue to local fallback.
   }
 
   return normalizeConfig();
