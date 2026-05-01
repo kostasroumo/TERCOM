@@ -843,6 +843,14 @@ for insert
 to authenticated
 with check (private.is_admin());
 
+drop policy if exists "task_pipeline_history_update_admin_only" on public.task_pipeline_history;
+create policy "task_pipeline_history_update_admin_only"
+on public.task_pipeline_history
+for update
+to authenticated
+using (private.is_admin())
+with check (private.is_admin());
+
 drop policy if exists "task_fiber_stage_history_select_visible" on public.task_fiber_stage_history;
 create policy "task_fiber_stage_history_select_visible"
 on public.task_fiber_stage_history
@@ -857,6 +865,14 @@ for insert
 to authenticated
 with check (private.can_edit_task(task_id));
 
+drop policy if exists "task_fiber_stage_history_update_editable" on public.task_fiber_stage_history;
+create policy "task_fiber_stage_history_update_editable"
+on public.task_fiber_stage_history
+for update
+to authenticated
+using (private.can_edit_task(task_id))
+with check (private.can_edit_task(task_id));
+
 drop policy if exists "task_photos_select_visible" on public.task_photos;
 create policy "task_photos_select_visible"
 on public.task_photos
@@ -869,6 +885,14 @@ create policy "task_photos_insert_editable"
 on public.task_photos
 for insert
 to authenticated
+with check (private.can_edit_task(task_id));
+
+drop policy if exists "task_photos_update_editable" on public.task_photos;
+create policy "task_photos_update_editable"
+on public.task_photos
+for update
+to authenticated
+using (private.can_edit_task(task_id))
 with check (private.can_edit_task(task_id));
 
 drop policy if exists "task_photos_delete_admin_only" on public.task_photos;
@@ -892,6 +916,14 @@ for insert
 to authenticated
 with check (private.can_edit_task(task_id));
 
+drop policy if exists "task_files_update_editable" on public.task_files;
+create policy "task_files_update_editable"
+on public.task_files
+for update
+to authenticated
+using (private.can_edit_task(task_id))
+with check (private.can_edit_task(task_id));
+
 drop policy if exists "task_files_delete_admin_only" on public.task_files;
 create policy "task_files_delete_admin_only"
 on public.task_files
@@ -913,6 +945,14 @@ for insert
 to authenticated
 with check (private.can_edit_task(task_id));
 
+drop policy if exists "task_materials_update_editable" on public.task_materials;
+create policy "task_materials_update_editable"
+on public.task_materials
+for update
+to authenticated
+using (private.can_edit_task(task_id))
+with check (private.can_edit_task(task_id));
+
 drop policy if exists "task_materials_delete_admin_only" on public.task_materials;
 create policy "task_materials_delete_admin_only"
 on public.task_materials
@@ -932,6 +972,14 @@ create policy "task_work_items_insert_editable"
 on public.task_work_items
 for insert
 to authenticated
+with check (private.can_edit_task(task_id));
+
+drop policy if exists "task_work_items_update_editable" on public.task_work_items;
+create policy "task_work_items_update_editable"
+on public.task_work_items
+for update
+to authenticated
+using (private.can_edit_task(task_id))
 with check (private.can_edit_task(task_id));
 
 drop policy if exists "task_work_items_delete_admin_only" on public.task_work_items;
