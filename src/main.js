@@ -1425,7 +1425,6 @@ function render() {
             }
 
             ${canCreateTasks() ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
-            <button class="button button--ghost" data-reset-demo>Reset demo</button>
             ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
           </div>
         </header>
@@ -1935,26 +1934,6 @@ function handleClick(event) {
     state.ui.expandedAdminAssignee = state.ui.expandedAdminAssignee === nextAssignee ? "" : nextAssignee;
     saveState();
     render();
-    return;
-  }
-
-  if (event.target.closest("[data-reset-demo]")) {
-    if (isSupabaseMode() && isAuthenticated()) {
-      loadSupabaseState()
-        .then(() => {
-          window.location.hash = "#/dashboard";
-          render();
-        })
-        .catch((error) => {
-          runtime.syncError = error.message;
-          render();
-        });
-    } else {
-      state = normalizeState(createInitialState());
-      saveState();
-      window.location.hash = "#/dashboard";
-      render();
-    }
     return;
   }
 
