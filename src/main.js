@@ -53,6 +53,7 @@ const runtime = {
   syncError: "",
   syncQueue: Promise.resolve(),
   activeBootstrapLoad: null,
+  activeBootstrapToken: "",
   lastLoadedSessionToken: "",
   activeTaskDetailLoads: new Map(),
   activeTaskListLoad: null,
@@ -226,15 +227,12 @@ async function loadSupabaseState() {
 
   if (
     runtime.activeBootstrapLoad &&
-    currentToken &&
-    runtime.lastLoadedSessionToken === currentToken &&
-    runtime.profile?.id === runtime.session?.user?.id
+    (!runtime.activeBootstrapToken || !currentToken || runtime.activeBootstrapToken === currentToken)
   ) {
     return runtime.activeBootstrapLoad;
   }
 
   if (
-    !runtime.activeBootstrapLoad &&
     currentToken &&
     runtime.lastLoadedSessionToken === currentToken &&
     runtime.profile?.id === runtime.session?.user?.id
@@ -242,6 +240,7 @@ async function loadSupabaseState() {
     return;
   }
 
+  runtime.activeBootstrapToken = currentToken;
   runtime.activeBootstrapLoad = (async () => {
     const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
 
@@ -275,6 +274,7 @@ async function loadSupabaseState() {
     await runtime.activeBootstrapLoad;
   } finally {
     runtime.activeBootstrapLoad = null;
+    runtime.activeBootstrapToken = "";
   }
 }
 
