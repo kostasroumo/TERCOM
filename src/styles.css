@@ -1285,6 +1285,59 @@ svg {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
+.admin-users-page {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-user-create {
+  margin-top: 18px;
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-user-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) repeat(4, minmax(120px, 1fr)) minmax(200px, 1.2fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: rgba(20, 50, 69, 0.04);
+  border: 1px solid rgba(18, 52, 70, 0.08);
+}
+
+.admin-user-row__identity,
+.admin-user-row__meta,
+.admin-user-row__actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-user-row__identity span,
+.admin-user-row__meta span {
+  color: var(--text-soft);
+}
+
+.admin-user-row__actions {
+  align-content: start;
+}
+
+@media (max-width: 1180px) {
+  .admin-user-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-user-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .auth-brand .eyebrow,
 .auth-brand h1,
 .auth-brand p,

@@ -2,6 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handler as adminUsersHandler } from './netlify/functions/admin-users.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = __dirname;
@@ -27,7 +28,37 @@ function sendFile(res, filePath) {
   createReadStream(filePath).pipe(res);
 }
 
-const server = http.createServer((req, res) => {
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+async function handleFunctionRoute(req, requestUrl) {
+  const body = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method || "GET")
+    ? await readRequestBody(req)
+    : "";
+
+  const event = {
+    httpMethod: req.method || "GET",
+    headers: req.headers,
+    body,
+    rawUrl: requestUrl.toString(),
+    path: requestUrl.pathname,
+    queryStringParameters: Object.fromEntries(requestUrl.searchParams.entries())
+  };
+
+  if (requestUrl.pathname === "/.netlify/functions/admin-users") {
+    return adminUsersHandler(event);
+  }
+
+  return null;
+}
+
+const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url, `http://${req.headers.host}`);
 
   if (requestUrl.pathname === "/.netlify/functions/public-config") {
@@ -42,6 +73,18 @@ const server = http.createServer((req, res) => {
       })
     );
     return;
+  }
+
+  if (requestUrl.pathname.startsWith("/.netlify/functions/")) {
+    const functionResponse = await handleFunctionRoute(req, requestUrl);
+
+    if (functionResponse) {
+      res.writeHead(functionResponse.statusCode || 200, functionResponse.headers || {
+        "Content-Type": "application/json; charset=utf-8"
+      });
+      res.end(functionResponse.body || "");
+      return;
+    }
   }
 
   const requestedPath = decodeURIComponent(requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname);

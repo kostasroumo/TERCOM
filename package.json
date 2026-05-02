@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "generate:supabase-seed": "node scripts/generate-supabase-seed.mjs"
+    "generate:supabase-seed": "node scripts/generate-supabase-seed.mjs",
+    "backup:supabase": "bash tools/backup/backup-supabase.sh",
+    "restore:supabase": "bash tools/backup/restore-supabase.sh"
   }
 }

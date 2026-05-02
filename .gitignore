@@ -1,0 +1,3 @@
+.DS_Store
+tools/backup/.env.backup
+tools/backup/backups/

@@ -1,6 +1,7 @@
 import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
+import { AdminUsers } from "./components/AdminUsers.js";
 import { MATERIAL_CATALOG_SEED } from "./data/materialCatalog.js";
 import { WORK_CATALOG_SEED } from "./data/workCatalog.js";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./data/mockData.js";
 import { countByStatus, createId, createUuid, deepClone, escapeHtml, formatDateTime, formatElapsedDays, icon } from "./lib/helpers.js";
 import { hasSupabaseRuntimeConfig, loadRuntimeConfig } from "./lib/runtimeConfig.js";
+import { createManagedUser, fetchAdminUsers, updateManagedUser } from "./lib/adminUsersApi.js";
 import {
   createSupabaseBrowserClient,
   fetchSupabaseBootstrapData,
@@ -65,6 +67,12 @@ const runtime = {
     rpcCount: 0,
     fallbackCount: 0
   },
+  adminUsers: [],
+  adminUsersLoaded: false,
+  adminUsersPending: false,
+  adminUsersError: "",
+  adminUsersMessage: "",
+  activeAdminUsersLoad: null,
   activeTaskDetailLoads: new Map(),
   activeTaskListLoad: null,
   activeCatalogLoad: null
@@ -281,6 +289,10 @@ async function loadSupabaseState(reason = "") {
   runtime.tasksLoaded = !!payload.tasksLoaded;
   runtime.catalogsLoaded = !!((payload.workCatalog && payload.workCatalog.length) || (payload.inventory && payload.inventory.length));
   runtime.workCatalog = payload.workCatalog?.length ? payload.workCatalog : [...WORK_CATALOG_SEED];
+  runtime.adminUsersLoaded = false;
+  runtime.adminUsers = [];
+  runtime.adminUsersError = "";
+  runtime.adminUsersMessage = "";
   state.tasks = (payload.tasks || []).map(normalizeTask);
   state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
   state.currentRole = payload.profile?.role || "partner";
@@ -298,6 +310,13 @@ async function loadSupabaseState(reason = "") {
   }
   runtime.lastLoadedSessionToken = payload.session?.access_token || "";
   saveState();
+
+  if (payload.profile && payload.profile.isActive === false) {
+    await signOutSession(runtime.supabase).catch(() => {});
+    clearSupabaseLiveState();
+    runtime.authError = "Ο λογαριασμός έχει απενεργοποιηθεί. Επικοινώνησε με τον admin.";
+    runtime.loading = false;
+  }
 }
 
 function clearSupabaseLiveState() {
@@ -318,6 +337,12 @@ function clearSupabaseLiveState() {
     rpcCount: 0,
     fallbackCount: 0
   };
+  runtime.adminUsers = [];
+  runtime.adminUsersLoaded = false;
+  runtime.adminUsersPending = false;
+  runtime.adminUsersError = "";
+  runtime.adminUsersMessage = "";
+  runtime.activeAdminUsersLoad = null;
   state.currentRole = "admin";
   state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
   resetUiStateForLiveSession();
@@ -420,6 +445,163 @@ async function ensureSupabaseCatalogsLoaded() {
   }
 }
 
+function normalizeManagedUser(user) {
+  return {
+    id: user.id || "",
+    email: user.email || "",
+    role: user.role || "partner",
+    displayName: user.displayName || user.display_name || "",
+    companyName: user.companyName || user.company_name || "",
+    title: user.title || "",
+    isActive: user.isActive !== false,
+    createdAt: user.createdAt || user.created_at || "",
+    updatedAt: user.updatedAt || user.updated_at || ""
+  };
+}
+
+async function ensureAdminUsersLoaded() {
+  if (!canManageUsers()) {
+    return;
+  }
+
+  if (runtime.adminUsersLoaded) {
+    return;
+  }
+
+  if (runtime.activeAdminUsersLoad) {
+    return runtime.activeAdminUsersLoad;
+  }
+
+  runtime.activeAdminUsersLoad = (async () => {
+    const users = await fetchAdminUsers(runtime.session);
+    runtime.adminUsers = users.map(normalizeManagedUser);
+    runtime.adminUsersLoaded = true;
+    runtime.adminUsersError = "";
+    saveState();
+    render();
+  })();
+
+  try {
+    await runtime.activeAdminUsersLoad;
+  } catch (error) {
+    runtime.adminUsersError = error.message;
+    render();
+  } finally {
+    runtime.activeAdminUsersLoad = null;
+  }
+}
+
+function upsertManagedUserInRuntime(user) {
+  const normalized = normalizeManagedUser(user);
+  const existingIndex = runtime.adminUsers.findIndex((entry) => entry.id === normalized.id);
+
+  if (existingIndex >= 0) {
+    runtime.adminUsers.splice(existingIndex, 1, normalized);
+  } else {
+    runtime.adminUsers.unshift(normalized);
+  }
+
+  runtime.adminUsers.sort((left, right) => (left.displayName || left.email).localeCompare(right.displayName || right.email, "el"));
+}
+
+function upsertManagedProfileInRuntime(user) {
+  const normalizedProfile = {
+    id: user.id || "",
+    email: user.email || "",
+    role: user.role || "partner",
+    name: user.displayName || user.display_name || user.email || "",
+    companyName: user.companyName || user.company_name || "",
+    title: user.title || "",
+    phone: user.phone || "",
+    isActive: user.isActive !== false
+  };
+
+  const existingIndex = runtime.profiles.findIndex((entry) => entry.id === normalizedProfile.id);
+
+  if (existingIndex >= 0) {
+    runtime.profiles.splice(existingIndex, 1, normalizedProfile);
+  } else {
+    runtime.profiles.push(normalizedProfile);
+  }
+
+  runtime.profiles.sort((left, right) => (left.name || left.email).localeCompare(right.name || right.email, "el"));
+}
+
+async function handleAdminUserCreate(formData) {
+  if (!canManageUsers()) {
+    return;
+  }
+
+  runtime.adminUsersPending = true;
+  runtime.adminUsersError = "";
+  runtime.adminUsersMessage = "";
+  render();
+
+  try {
+    const user = await createManagedUser(runtime.session, {
+      email: String(formData.get("email") || ""),
+      password: String(formData.get("password") || ""),
+      displayName: String(formData.get("displayName") || ""),
+      companyName: String(formData.get("companyName") || ""),
+      title: String(formData.get("title") || ""),
+      role: String(formData.get("role") || "partner")
+    });
+
+    upsertManagedUserInRuntime(user);
+    upsertManagedProfileInRuntime(user);
+    runtime.adminUsersLoaded = true;
+    runtime.adminUsersMessage = "Ο χρήστης δημιουργήθηκε και είναι πλέον διαθέσιμος στο σύστημα.";
+  } catch (error) {
+    runtime.adminUsersError = error.message;
+  } finally {
+    runtime.adminUsersPending = false;
+    render();
+  }
+}
+
+async function handleAdminUserUpdate(formData) {
+  if (!canManageUsers()) {
+    return;
+  }
+
+  const userId = String(formData.get("id") || "");
+  if (!userId) {
+    return;
+  }
+
+  const existingUser = runtime.adminUsers.find((entry) => entry.id === userId);
+
+  runtime.adminUsersPending = true;
+  runtime.adminUsersError = "";
+  runtime.adminUsersMessage = "";
+  render();
+
+  try {
+    const user = await updateManagedUser(runtime.session, {
+      id: userId,
+      displayName: String(formData.get("displayName") || ""),
+      companyName: String(formData.get("companyName") || ""),
+      title: String(formData.get("title") || ""),
+      role: String(formData.get("role") || existingUser?.role || "partner"),
+      isActive: formData.get("isActive") == null
+        ? existingUser?.isActive !== false
+        : String(formData.get("isActive") || "true") === "true"
+    });
+
+    upsertManagedUserInRuntime(user);
+    upsertManagedProfileInRuntime(user);
+    runtime.adminUsersLoaded = true;
+    runtime.adminUsersMessage = user.isActive === false
+      ? "Ο χρήστης απενεργοποιήθηκε και δεν εμφανίζεται πλέον σε νέες αναθέσεις."
+      : "Τα στοιχεία του χρήστη ενημερώθηκαν.";
+  } catch (error) {
+    runtime.adminUsersError = error.message;
+  } finally {
+    runtime.adminUsersPending = false;
+    render();
+  }
+}
+
 async function refreshSupabaseDashboardSummary() {
   if (!isSupabaseMode() || !isAuthenticated()) {
     return;
@@ -453,6 +635,10 @@ function isAuthenticated() {
   return hasLiveProfile();
 }
 
+function canManageUsers() {
+  return isSupabaseMode() && runtime.profile?.role === "admin";
+}
+
 function getRuntimeAssignableProfiles() {
   return (runtime.profiles || []).filter((profile) => profile.isActive !== false);
 }
@@ -464,7 +650,8 @@ function createEmptyDashboardSummary() {
     statusCounts: [],
     queues: {
       cancellationRequested: [],
-      cancelled: []
+      cancelled: [],
+      archived: []
     }
   };
 }
@@ -721,6 +908,10 @@ function getRoute() {
 
   if (hash === "tasks") {
     return { view: "tasks" };
+  }
+
+  if (hash === "users") {
+    return { view: "users" };
   }
 
   if (hash === "reports/open-tasks") {
@@ -1505,6 +1696,16 @@ function render() {
             <span class="nav-link__icon">${icon("tasks")}</span>
             <span class="nav-link__label">Εργασίες</span>
           </button>
+          ${
+            canManageUsers()
+              ? `
+                <button class="nav-link${route.view === "users" ? " is-active" : ""}" data-route="#/users">
+                  <span class="nav-link__icon">${icon("assigned")}</span>
+                  <span class="nav-link__label">Χρήστες</span>
+                </button>
+              `
+              : ""
+          }
           <button class="nav-link nav-link--action${route.view === "report" ? " is-active" : ""}" data-export-open-pdf>
             <span class="nav-link__icon">${icon("print")}</span>
             <span class="nav-link__label">Export PDF</span>
@@ -1516,7 +1717,7 @@ function render() {
         <header class="topbar surface">
           <div>
             <p class="eyebrow">Operational View</p>
-            <h1>${route.view === "dashboard" ? "Κέντρο ελέγχου εργασιών πεδίου" : route.view === "tasks" ? "Διαχείριση εργασιών" : route.view === "report" ? "Αναφορά ανοιχτών εργασιών" : "Καρτέλα εργασίας"}</h1>
+            <h1>${route.view === "dashboard" ? "Κέντρο ελέγχου εργασιών πεδίου" : route.view === "tasks" ? "Διαχείριση εργασιών" : route.view === "users" ? "Διαχείριση χρηστών" : route.view === "report" ? "Αναφορά ανοιχτών εργασιών" : "Καρτέλα εργασίας"}</h1>
           </div>
 
           <div class="topbar__controls">
@@ -1586,6 +1787,39 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
         ${runtime.syncError ? `<button class="button button--ghost" data-retry-bootstrap>Ξανά προσπάθεια</button>` : ""}
       </section>
     `;
+  }
+
+  if (route.view === "users") {
+    if (!canManageUsers()) {
+      return `
+        <section class="surface empty-screen">
+          <h2>Δεν έχεις πρόσβαση</h2>
+          <p>Η διαχείριση χρηστών είναι διαθέσιμη μόνο στον admin.</p>
+        </section>
+      `;
+    }
+
+    if (!runtime.adminUsersLoaded) {
+      ensureAdminUsersLoaded().catch((error) => {
+        runtime.adminUsersError = error.message;
+        render();
+      });
+
+      return `
+        <section class="surface empty-screen">
+          <h2>Φόρτωση χρηστών</h2>
+          <p>Ανακτούμε τη λίστα λογαριασμών από τη βάση δεδομένων.</p>
+        </section>
+      `;
+    }
+
+    return AdminUsers({
+      users: runtime.adminUsers,
+      currentUserId: currentUser.id,
+      pending: runtime.adminUsersPending,
+      error: runtime.adminUsersError,
+      message: runtime.adminUsersMessage
+    });
   }
 
   if (isSupabaseMode() && (route.view === "tasks" || route.view === "report") && !runtime.tasksLoaded) {
@@ -2207,6 +2441,23 @@ function handleSubmit(event) {
       return;
     }
     createTaskFromForm(new FormData(createForm));
+    return;
+  }
+
+  const adminUserCreateForm = event.target.closest("[data-admin-user-create-form]");
+  if (adminUserCreateForm) {
+    event.preventDefault();
+    handleAdminUserCreate(new FormData(adminUserCreateForm));
+    return;
+  }
+
+  const adminUserForm = event.target.closest("[data-admin-user-form]");
+  if (adminUserForm) {
+    event.preventDefault();
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε τις αλλαγές του χρήστη;")) {
+      return;
+    }
+    handleAdminUserUpdate(new FormData(adminUserForm));
     return;
   }
 
