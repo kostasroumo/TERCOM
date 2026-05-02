@@ -472,6 +472,7 @@ async function ensureAdminUsersLoaded() {
     return runtime.activeAdminUsersLoad;
   }
 
+  runtime.adminUsersError = "";
   runtime.activeAdminUsersLoad = (async () => {
     const users = await fetchAdminUsers(runtime.session);
     runtime.adminUsers = users.map(normalizeManagedUser);
@@ -1799,6 +1800,16 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       `;
     }
 
+    if (runtime.adminUsersError && !runtime.adminUsersLoaded) {
+      return `
+        <section class="surface empty-screen">
+          <h2>Η φόρτωση χρηστών απέτυχε</h2>
+          <p>${escapeHtml(runtime.adminUsersError)}</p>
+          <button class="button button--ghost" data-retry-admin-users>Ξανά προσπάθεια</button>
+        </section>
+      `;
+    }
+
     if (!runtime.adminUsersLoaded) {
       ensureAdminUsersLoaded().catch((error) => {
         runtime.adminUsersError = error.message;
@@ -2229,6 +2240,17 @@ function handleClick(event) {
       render();
       bootstrap();
     }
+    return;
+  }
+
+  if (event.target.closest("[data-retry-admin-users]")) {
+    runtime.adminUsersError = "";
+    runtime.adminUsersLoaded = false;
+    render();
+    ensureAdminUsersLoaded().catch((error) => {
+      runtime.adminUsersError = error.message;
+      render();
+    });
     return;
   }
 
