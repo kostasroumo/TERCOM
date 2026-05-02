@@ -1400,6 +1400,36 @@ svg {
   background: rgba(18, 56, 78, 0.06);
 }
 
+.topbar-session__meta {
+  display: grid;
+  gap: 4px;
+}
+
+.topbar-session__meta strong {
+  line-height: 1.1;
+}
+
+.bootstrap-indicator {
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(24, 127, 183, 0.1);
+  color: #22506d;
+  font-size: 0.77rem;
+  line-height: 1.25;
+}
+
+.bootstrap-indicator strong,
+.bootstrap-indicator span {
+  display: block;
+}
+
+.bootstrap-indicator--warning {
+  background: rgba(240, 161, 29, 0.16);
+  color: #81550a;
+}
+
 .mini-spec,
 .floor-card dl {
   margin: 0;

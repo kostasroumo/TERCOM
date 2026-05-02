@@ -56,6 +56,15 @@ const runtime = {
   activeBootstrapLoad: null,
   activeBootstrapToken: "",
   lastLoadedSessionToken: "",
+  bootstrapDiagnostics: {
+    lastSource: "",
+    lastReason: "",
+    lastDurationMs: 0,
+    lastLoadedAt: "",
+    lastFallbackError: "",
+    rpcCount: 0,
+    fallbackCount: 0
+  },
   activeTaskDetailLoads: new Map(),
   activeTaskListLoad: null,
   activeCatalogLoad: null
@@ -130,6 +139,23 @@ function resetTaskFilters() {
   state.filters.pipeline = "all";
   state.filters.city = "all";
   state.filters.technician = "all";
+}
+
+function formatClockTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleTimeString("el-GR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
 }
 
 function withTimeout(promise, ms, label) {
@@ -224,7 +250,27 @@ async function bootstrap() {
   }
 }
 
-async function loadSupabaseState() {
+function updateBootstrapDiagnostics(meta = {}, reason = "") {
+  if (!meta?.source || meta.source === "none") {
+    return;
+  }
+
+  runtime.bootstrapDiagnostics.lastSource = meta.source;
+  runtime.bootstrapDiagnostics.lastReason = reason || "";
+  runtime.bootstrapDiagnostics.lastDurationMs = Number(meta.durationMs) || 0;
+  runtime.bootstrapDiagnostics.lastLoadedAt = new Date().toISOString();
+  runtime.bootstrapDiagnostics.lastFallbackError = meta.fallbackError || "";
+
+  if (meta.source === "rpc") {
+    runtime.bootstrapDiagnostics.rpcCount += 1;
+  }
+
+  if (meta.source === "fallback") {
+    runtime.bootstrapDiagnostics.fallbackCount += 1;
+  }
+}
+
+async function loadSupabaseState(reason = "") {
   const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
 
   runtime.session = payload.session;
@@ -239,6 +285,7 @@ async function loadSupabaseState() {
   state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
   state.currentRole = payload.profile?.role || "partner";
   state.currentUserId = payload.profile?.id || "";
+  updateBootstrapDiagnostics(payload.bootstrapMeta, reason);
   state.ui.showCreateModal = false;
   state.ui.validationComment = "";
   state.ui.cancellationComment = "";
@@ -262,6 +309,15 @@ function clearSupabaseLiveState() {
   runtime.lastLoadedSessionToken = "";
   runtime.activeBootstrapLoad = null;
   runtime.activeBootstrapToken = "";
+  runtime.bootstrapDiagnostics = {
+    lastSource: "",
+    lastReason: "",
+    lastDurationMs: 0,
+    lastLoadedAt: "",
+    lastFallbackError: "",
+    rpcCount: 0,
+    fallbackCount: 0
+  };
   state.currentRole = "admin";
   state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
   resetUiStateForLiveSession();
@@ -293,7 +349,7 @@ function scheduleSupabaseHydration(reason, session = runtime.session) {
   console.info("[bootstrap] start", reason);
 
   runtime.activeBootstrapLoad = withTimeout(
-    loadSupabaseState(),
+    loadSupabaseState(reason),
     15000,
     "Η φόρτωση των δεδομένων από Supabase"
   )
@@ -370,6 +426,7 @@ async function refreshSupabaseDashboardSummary() {
   }
 
   const payload = await fetchSupabaseBootstrapData(runtime.supabase, runtime.session);
+  updateBootstrapDiagnostics(payload.bootstrapMeta, "dashboard-refresh");
   if (payload.profile) {
     runtime.profile = payload.profile;
   }
@@ -689,6 +746,32 @@ function getCurrentUser() {
   }
 
   return getCurrentRoleUsers().find((user) => user.id === state.currentUserId) || getCurrentRoleUsers()[0];
+}
+
+function renderBootstrapIndicator(currentUser) {
+  if (!isSupabaseMode() || currentUser?.role !== "admin") {
+    return "";
+  }
+
+  const diagnostics = runtime.bootstrapDiagnostics;
+  if (!diagnostics.lastSource) {
+    return "";
+  }
+
+  const isFallback = diagnostics.lastSource === "fallback";
+  const label = isFallback ? "Fallback" : "RPC";
+  const duration = diagnostics.lastDurationMs ? `${diagnostics.lastDurationMs}ms` : "-";
+  const lastLoaded = formatClockTime(diagnostics.lastLoadedAt);
+  const reason = diagnostics.lastReason || "bootstrap";
+  const extraNote = isFallback && diagnostics.lastFallbackError ? `<span>${escapeHtml(diagnostics.lastFallbackError)}</span>` : "";
+
+  return `
+    <div class="bootstrap-indicator${isFallback ? " bootstrap-indicator--warning" : ""}">
+      <strong>Bootstrap ${escapeHtml(label)}</strong>
+      <span>${escapeHtml(duration)} · ${escapeHtml(lastLoaded)} · ${escapeHtml(reason)}</span>
+      ${extraNote}
+    </div>
+  `;
 }
 
 function inferTaskTypeFromPipeline(pipelineKey) {
@@ -1419,7 +1502,10 @@ function render() {
                 : `
                   <div class="topbar-session">
                     <span class="pill pill--pipeline-leitourgies-inwn">${escapeHtml(roleLabel)}</span>
-                    <strong>${escapeHtml(currentUser.name)}</strong>
+                    <div class="topbar-session__meta">
+                      <strong>${escapeHtml(currentUser.name)}</strong>
+                      ${renderBootstrapIndicator(currentUser)}
+                    </div>
                   </div>
                 `
             }

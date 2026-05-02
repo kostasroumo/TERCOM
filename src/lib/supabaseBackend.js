@@ -483,6 +483,7 @@ export function createSupabaseBrowserClient(config) {
 
 export async function fetchSupabaseBootstrapData(client, sessionOverride = null) {
   const session = sessionOverride || (await client.auth.getSession()).data.session;
+  const startedAt = performance.now();
 
   if (!session) {
     return {
@@ -491,9 +492,12 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
       profiles: [],
       inventory: [],
       workCatalog: [],
-      tasks: []
+      tasks: [],
+      bootstrapMeta: { source: "none", durationMs: 0, fallbackError: "" }
     };
   }
+
+  let fallbackError = "";
 
   try {
     const dashboardPayload = assertNoError(await client.rpc("dashboard_bootstrap_v1"), "Fetch dashboard bootstrap");
@@ -509,10 +513,16 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
         workCatalog: [],
         tasks: [],
         tasksLoaded: false,
-        dashboardSummary: normalizedDashboard
+        dashboardSummary: normalizedDashboard,
+        bootstrapMeta: {
+          source: "rpc",
+          durationMs: Math.round(performance.now() - startedAt),
+          fallbackError: ""
+        }
       };
     }
   } catch (error) {
+    fallbackError = error?.message || String(error || "");
     console.warn("[Supabase bootstrap] RPC failed, falling back to direct reads:", error?.message || error);
   }
 
@@ -578,7 +588,12 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
     workCatalog: [],
     tasks: taskRows.map((taskRow) => mapTaskRow(taskRow, context)),
     tasksLoaded: true,
-    dashboardSummary: null
+    dashboardSummary: null,
+    bootstrapMeta: {
+      source: "fallback",
+      durationMs: Math.round(performance.now() - startedAt),
+      fallbackError
+    }
   };
 }
 
