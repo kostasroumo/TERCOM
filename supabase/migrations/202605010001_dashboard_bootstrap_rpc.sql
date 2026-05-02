@@ -151,6 +151,31 @@ as $$
     ) as payload
     from visible_tasks vt
     where vt.status = 'cancelled'
+  ),
+  archived_queue as (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'id', t.id,
+          'title', t.title,
+          'address', t.address,
+          'city', t.city,
+          'pipeline', t.pipeline,
+          'status', t.status,
+          'assignedUserName', coalesce(ap.display_name, ''),
+          'archivedAt', t.archived_at,
+          'archivedBy', coalesce(arp.display_name, '')
+        )
+        order by t.archived_at desc nulls last, t.updated_at desc
+      ),
+      '[]'::jsonb
+    ) as payload
+    from public.tasks t
+    left join public.profiles ap on ap.id = t.assigned_user_id
+    left join public.profiles arp on arp.id = t.archived_by
+    cross join me
+    where me.role = 'admin'
+      and t.archived_at is not null
   )
   select jsonb_build_object(
     'profile',
@@ -205,7 +230,8 @@ as $$
     'queues',
     jsonb_build_object(
       'cancellationRequested', (select payload from cancellation_queue),
-      'cancelled', (select payload from cancelled_queue)
+      'cancelled', (select payload from cancelled_queue),
+      'archived', (select payload from archived_queue)
     )
   );
 $$;

@@ -106,7 +106,8 @@ function normalizeDashboardBootstrapPayload(payload) {
     statusCounts: Array.isArray(payload?.statusCounts) ? payload.statusCounts : [],
     queues: {
       cancellationRequested: Array.isArray(payload?.queues?.cancellationRequested) ? payload.queues.cancellationRequested : [],
-      cancelled: Array.isArray(payload?.queues?.cancelled) ? payload.queues.cancelled : []
+      cancelled: Array.isArray(payload?.queues?.cancelled) ? payload.queues.cancelled : [],
+      archived: Array.isArray(payload?.queues?.archived) ? payload.queues.archived : []
     }
   };
 }

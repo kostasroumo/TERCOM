@@ -676,6 +676,18 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
       <p class="muted">${escapeHtml(workflowCopy)}</p>
 
       ${
+        task.archivedAt
+          ? `
+            <div class="alert-banner alert-banner--warning">
+              <strong>Αρχειοθετημένη εργασία</strong>
+              <p>Η εργασία έχει βγει από το ενεργό workflow και εμφανίζεται εδώ μόνο για έλεγχο από admin.</p>
+              <span>${escapeHtml(task.archivedBy || "Admin")} · ${formatCompactDateTime(task.archivedAt)}</span>
+            </div>
+          `
+          : ""
+      }
+
+      ${
         task.status === "completed_with_pending"
           ? `
             <div class="alert-banner alert-banner--warning">

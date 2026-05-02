@@ -474,6 +474,10 @@ function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = n
     currentProfile?.role === "admin"
       ? tasks.filter((task) => !isTaskArchived(task))
       : tasks.filter((task) => !isTaskArchived(task) && task.assignedUserId === currentProfile?.id && task.status !== "cancelled");
+  const archivedTasks =
+    currentProfile?.role === "admin"
+      ? tasks.filter((task) => isTaskArchived(task))
+      : [];
 
   const sectionTotalsMap = new Map();
   const currentPipelineTotalsMap = new Map();
@@ -536,7 +540,18 @@ function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = n
           pipeline: task.pipeline,
           status: task.status,
           assignedUserName: task.assignedUserName || ""
-        }))
+        })),
+      archived: archivedTasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        address: task.address,
+        city: task.city,
+        pipeline: task.pipeline,
+        status: task.status,
+        assignedUserName: task.assignedUserName || "",
+        archivedAt: task.archivedAt || "",
+        archivedBy: task.archivedBy || ""
+      }))
     }
   };
 }
@@ -1112,27 +1127,28 @@ function getPermissions(task) {
   const currentUser = getCurrentUser();
   const isAdmin = state.currentRole === "admin";
   const isAssignedExecutor = currentUser.id === task.assignedUserId;
+  const isArchived = isTaskArchived(task);
 
   return {
-    canEditCore: isAdmin,
-    canManageAssignment: isAdmin,
-    canEditStatusDirectly: isAdmin,
-    canEditAdminNotes: isAdmin,
-    canEditPartnerNotes: isAssignedExecutor,
-    canUploadPhotos: isAdmin || isAssignedExecutor,
-    canUploadFiles: isAdmin || isAssignedExecutor,
-    canAddMaterials: isAdmin || isAssignedExecutor,
-    canAddWorkItems: isAdmin || isAssignedExecutor,
-    canEditSafety: isAdmin || isAssignedExecutor,
-    canScheduleVisit: isAssignedExecutor && ["assigned", "scheduled"].includes(task.status),
-    canStart: (isAdmin || isAssignedExecutor) && task.status === "scheduled",
-    canSubmitValidation: (isAdmin || isAssignedExecutor) && ["in_progress", "completed_with_pending"].includes(task.status),
-    canApprove: isAdmin && task.status === "pending_validation",
-    canReject: isAdmin && task.status === "pending_validation",
-    canRequestCancellation: isAssignedExecutor && task.status === "in_progress" && !task.flags.cancellationRequested,
-    canApproveCancellation: isAdmin && !!task.flags.cancellationRequested,
-    canRejectCancellation: isAdmin && !!task.flags.cancellationRequested,
-    canArchive: isAdmin && !isTaskArchived(task)
+    canEditCore: isAdmin && !isArchived,
+    canManageAssignment: isAdmin && !isArchived,
+    canEditStatusDirectly: isAdmin && !isArchived,
+    canEditAdminNotes: isAdmin && !isArchived,
+    canEditPartnerNotes: isAssignedExecutor && !isArchived,
+    canUploadPhotos: (isAdmin || isAssignedExecutor) && !isArchived,
+    canUploadFiles: (isAdmin || isAssignedExecutor) && !isArchived,
+    canAddMaterials: (isAdmin || isAssignedExecutor) && !isArchived,
+    canAddWorkItems: (isAdmin || isAssignedExecutor) && !isArchived,
+    canEditSafety: (isAdmin || isAssignedExecutor) && !isArchived,
+    canScheduleVisit: isAssignedExecutor && !isArchived && ["assigned", "scheduled"].includes(task.status),
+    canStart: (isAdmin || isAssignedExecutor) && !isArchived && task.status === "scheduled",
+    canSubmitValidation: (isAdmin || isAssignedExecutor) && !isArchived && ["in_progress", "completed_with_pending"].includes(task.status),
+    canApprove: isAdmin && !isArchived && task.status === "pending_validation",
+    canReject: isAdmin && !isArchived && task.status === "pending_validation",
+    canRequestCancellation: isAssignedExecutor && !isArchived && task.status === "in_progress" && !task.flags.cancellationRequested,
+    canApproveCancellation: isAdmin && !isArchived && !!task.flags.cancellationRequested,
+    canRejectCancellation: isAdmin && !isArchived && !!task.flags.cancellationRequested,
+    canArchive: isAdmin && !isArchived
   };
 }
 
@@ -1258,6 +1274,7 @@ function renderPipelineStatusSectionsFromSummary(summary, assigneeId = "") {
 }
 
 function renderAdminDashboard(visibleTasks) {
+  const archivedTasks = state.tasks.filter((task) => isTaskArchived(task));
   const assigneeSections = [
     ...getAssignableUsers().map((assignee) => ({
       id: assignee.id,
@@ -1316,6 +1333,12 @@ function renderAdminDashboard(visibleTasks) {
           visibleTasks.filter((task) => task.status === "cancelled"),
           "Δεν υπάρχουν ακυρωμένες εργασίες.",
           "cancelled"
+        )}
+        ${renderAdminQueue(
+          "Αρχειοθετημένες Εργασίες",
+          "Εργασίες που βγήκαν από το ενεργό flow και κρατούνται μόνο για ιστορικό ή έλεγχο από admin.",
+          archivedTasks,
+          "Δεν υπάρχουν αρχειοθετημένες εργασίες."
         )}
       </section>
     </section>
@@ -1379,12 +1402,19 @@ function renderAdminDashboardFromSummary(summary) {
           "Δεν υπάρχουν ακυρωμένες εργασίες.",
           "cancelled"
         )}
+        ${renderAdminQueue(
+          "Αρχειοθετημένες Εργασίες",
+          "Εργασίες που βγήκαν από το ενεργό flow και κρατούνται μόνο για ιστορικό ή έλεγχο από admin.",
+          summary.queues.archived || [],
+          "Δεν υπάρχουν αρχειοθετημένες εργασίες."
+        )}
       </section>
     </section>
   `;
 }
 
 function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
+  const hasRouteFilter = !!filterStatus;
   return `
     <section class="surface">
       <div class="section-head">
@@ -1394,7 +1424,11 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
         </div>
         <div>
           <p class="section-copy">${escapeHtml(copy)}</p>
-          ${filterStatus ? `<button class="button button--ghost queue-head-action" data-route="#/tasks" data-filter-status="${escapeHtml(filterStatus)}">${tasks.length} συνολικά</button>` : ""}
+          ${
+            hasRouteFilter
+              ? `<button class="button button--ghost queue-head-action" data-route="#/tasks" data-filter-status="${escapeHtml(filterStatus)}">${tasks.length} συνολικά</button>`
+              : `<span class="pill pill--pipeline-autopsia">${tasks.length} συνολικά</span>`
+          }
         </div>
       </div>
 
@@ -1408,7 +1442,7 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
                     <button class="queue-item" data-open-task="${escapeHtml(task.id)}">
                       <strong>${escapeHtml(task.title)}</strong>
                       <span>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
-                      <span>${escapeHtml(task.assignedUserName || "Χωρίς ανάθεση")} · ${escapeHtml(STATUS_META[task.status]?.label || task.status)}</span>
+                      <span>${escapeHtml(task.assignedUserName || "Χωρίς ανάθεση")} · ${escapeHtml(task.archivedAt ? "Αρχειοθετημένη" : STATUS_META[task.status]?.label || task.status)}</span>
                     </button>
                   `
                 )
@@ -1641,7 +1675,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       `;
     }
 
-    if (isTaskArchived(task)) {
+    if (isTaskArchived(task) && state.currentRole !== "admin") {
       return `
         <section class="surface empty-screen">
           <h2>Η εργασία έχει αρχειοθετηθεί</h2>
