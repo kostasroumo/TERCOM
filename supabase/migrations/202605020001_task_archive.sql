@@ -1,5 +1,11 @@
 begin;
 
+alter table public.tasks
+  add column if not exists archived_at timestamptz;
+
+alter table public.tasks
+  add column if not exists archived_by uuid references public.profiles (id) on delete set null;
+
 create or replace function public.dashboard_bootstrap_v1()
 returns jsonb
 language sql

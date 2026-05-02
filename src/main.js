@@ -472,8 +472,8 @@ function createEmptyDashboardSummary() {
 function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = null) {
   const visibleTasks =
     currentProfile?.role === "admin"
-      ? tasks
-      : tasks.filter((task) => task.assignedUserId === currentProfile?.id && task.status !== "cancelled");
+      ? tasks.filter((task) => !isTaskArchived(task))
+      : tasks.filter((task) => !isTaskArchived(task) && task.assignedUserId === currentProfile?.id && task.status !== "cancelled");
 
   const sectionTotalsMap = new Map();
   const currentPipelineTotalsMap = new Map();
@@ -875,6 +875,9 @@ function normalizeTask(task) {
     bid: task.bid || task.serviceRequestId || "",
     assignedAt: task.assignedAt || (task.assignedUserId ? task.startDate || task.createdAt || "" : ""),
     completedAt: task.completedAt || (task.status === "completed" ? task.endDate || task.updatedAt || "" : ""),
+    archivedAt: task.archivedAt || "",
+    archivedById: task.archivedById || "",
+    archivedBy: normalizeLegacyUserName(task.archivedBy),
     createdBy: normalizeLegacyUserName(task.createdBy),
     createdById: task.createdById || "",
     updatedBy: normalizeLegacyUserName(task.updatedBy),
@@ -938,6 +941,10 @@ function normalizeTask(task) {
         }))
       : []
   };
+}
+
+function isTaskArchived(task) {
+  return !!task?.archivedAt;
 }
 
 function normalizeInventoryItem(item) {
@@ -1027,11 +1034,11 @@ function restoreWorkSearchFocus(selectionStart, selectionEnd) {
 
 function getVisibleTasks() {
   if (state.currentRole !== "partner") {
-    return state.tasks;
+    return state.tasks.filter((task) => !isTaskArchived(task));
   }
 
   const currentUser = getCurrentUser();
-  return state.tasks.filter((task) => task.assignedUserId === currentUser.id && task.status !== "cancelled");
+  return state.tasks.filter((task) => !isTaskArchived(task) && task.assignedUserId === currentUser.id && task.status !== "cancelled");
 }
 
 function hasRequiredAutopsiaCertificate(task) {
@@ -1124,7 +1131,8 @@ function getPermissions(task) {
     canReject: isAdmin && task.status === "pending_validation",
     canRequestCancellation: isAssignedExecutor && task.status === "in_progress" && !task.flags.cancellationRequested,
     canApproveCancellation: isAdmin && !!task.flags.cancellationRequested,
-    canRejectCancellation: isAdmin && !!task.flags.cancellationRequested
+    canRejectCancellation: isAdmin && !!task.flags.cancellationRequested,
+    canArchive: isAdmin && !isTaskArchived(task)
   };
 }
 
@@ -1629,6 +1637,17 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
         <section class="surface empty-screen">
           <h2>Φόρτωση λεπτομερειών εργασίας</h2>
           <p>Ετοιμάζουμε φωτογραφίες, αρχεία, ιστορικό και λοιπά στοιχεία της εργασίας.</p>
+        </section>
+      `;
+    }
+
+    if (isTaskArchived(task)) {
+      return `
+        <section class="surface empty-screen">
+          <h2>Η εργασία έχει αρχειοθετηθεί</h2>
+          <p>Η εργασία αφαιρέθηκε από τις ενεργές λίστες και το dashboard, χωρίς να χαθεί το ιστορικό της.</p>
+          <p>${escapeHtml(task.archivedBy || "Admin")} · ${escapeHtml(task.archivedAt ? formatDateTime(task.archivedAt) : "Χωρίς καταγραφή ώρας")}</p>
+          <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
         </section>
       `;
     }
@@ -2228,6 +2247,10 @@ function commitTaskChange(taskId, mutateTask, summary, details) {
     return nextTask;
   });
 
+  if (isSupabaseMode() && runtime.profile) {
+    runtime.dashboardSummary = buildDashboardSummaryFromTasks(state.tasks, runtime.profiles, runtime.profile);
+  }
+
   saveState();
   render();
   if (syncedTask) {
@@ -2263,6 +2286,9 @@ function createTaskFromForm(formData) {
     resourceTeam: selectedTeamUser?.name || "",
     assignedAt: hasDirectAssignment ? createdAt : "",
     completedAt: "",
+    archivedAt: "",
+    archivedById: "",
+    archivedBy: "",
     assignedUserId: selectedTeamUser?.id || "",
     assignedUserName: selectedTeamUser?.name || "",
     startDate,
@@ -2321,6 +2347,9 @@ function createTaskFromForm(formData) {
   };
 
   state.tasks.unshift(newTask);
+  if (isSupabaseMode() && runtime.profile) {
+    runtime.dashboardSummary = buildDashboardSummaryFromTasks(state.tasks, runtime.profiles, runtime.profile);
+  }
   state.ui.showCreateModal = false;
   state.ui.activeTab = "main";
   saveState();
@@ -2698,6 +2727,29 @@ function handleWorkflow(taskId, action) {
     );
     state.ui.cancellationComment = "";
     saveState();
+    render();
+    return;
+  }
+
+  if (action === "archive") {
+    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αρχειοθετήσετε αυτή την εργασία; Θα αφαιρεθεί από τις ενεργές λίστες και το dashboard.")) {
+      return;
+    }
+
+    commitTaskChange(
+      taskId,
+      (task) => {
+        task.archivedAt = new Date().toISOString();
+        task.archivedById = getCurrentUser().id;
+        task.archivedBy = getCurrentUser().name;
+      },
+      "Αρχειοθέτηση εργασίας",
+      "Η εργασία αρχειοθετήθηκε και αφαιρέθηκε από το ενεργό workflow."
+    );
+    state.ui.validationComment = "";
+    state.ui.cancellationComment = "";
+    saveState();
+    window.location.hash = "#/tasks";
     render();
     return;
   }

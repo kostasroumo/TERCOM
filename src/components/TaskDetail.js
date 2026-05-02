@@ -756,6 +756,12 @@ function renderWorkflowActions(task, permissions, validationComment, cancellatio
           ? `<button class="button button--secondary" data-workflow-action="reject-cancellation" data-task-id="${escapeHtml(task.id)}">Απόρριψη αιτήματος ακύρωσης</button>`
           : ""
       }
+
+      ${
+        permissions.canArchive
+          ? `<button class="button button--danger" data-workflow-action="archive" data-task-id="${escapeHtml(task.id)}">Αρχειοθέτηση εργασίας</button>`
+          : ""
+      }
     </div>
   `;
 }

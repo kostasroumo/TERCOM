@@ -151,6 +151,8 @@ create table if not exists public.tasks (
   cancellation_reason text not null default '',
   created_by uuid references public.profiles (id) on delete set null,
   updated_by uuid references public.profiles (id) on delete set null,
+  archived_at timestamptz,
+  archived_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint tasks_fiber_stage_pipeline_chk check (

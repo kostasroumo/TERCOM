@@ -195,6 +195,9 @@ function mapTaskRow(taskRow, context) {
     startDate: toDateTimeLocalValue(taskRow.start_date),
     endDate: toDateTimeLocalValue(taskRow.end_date),
     completedAt: taskRow.completed_at || "",
+    archivedAt: taskRow.archived_at || "",
+    archivedById: taskRow.archived_by || "",
+    archivedBy: resolveProfileName(profileMap, taskRow.archived_by, ""),
     adminNotes: taskRow.admin_notes || "",
     partnerNotes: taskRow.partner_notes || "",
     createdAt: taskRow.created_at || "",
@@ -315,6 +318,8 @@ function buildTaskCoreRow(task, currentUserId) {
     start_date: toNullableIsoDateTime(task.startDate),
     end_date: toNullableIsoDateTime(task.endDate),
     completed_at: toNullableIsoDateTime(task.completedAt),
+    archived_at: toNullableIsoDateTime(task.archivedAt),
+    archived_by: task.archivedById || null,
     admin_notes: task.adminNotes || "",
     partner_notes: task.partnerNotes || "",
     api_status: task.flags?.apiStatus || "SYNCED",
@@ -553,7 +558,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
 
   const [profilesRows, taskRows] = await Promise.all([
     assertNoError(await profilesQuery, "Fetch profiles"),
-    assertNoError(await client.from("tasks").select("*").order("updated_at", { ascending: false }), "Fetch tasks")
+    assertNoError(await client.from("tasks").select("*").is("archived_at", null).order("updated_at", { ascending: false }), "Fetch tasks")
   ]);
 
   const profiles = profilesRows.map(mapProfileRow);
@@ -598,7 +603,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
 }
 
 export async function fetchSupabaseTaskSummaries(client, profiles = []) {
-  const taskRows = assertNoError(await client.from("tasks").select("*").order("updated_at", { ascending: false }), "Fetch tasks");
+  const taskRows = assertNoError(await client.from("tasks").select("*").is("archived_at", null).order("updated_at", { ascending: false }), "Fetch tasks");
   const taskIds = taskRows.map((row) => row.id);
   const pipelineHistoryRows = await fetchCollection(client, "task_pipeline_history", taskIds, "*", "completed_at");
   const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
