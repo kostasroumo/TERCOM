@@ -3,6 +3,7 @@
 Αυτό το app έχει πλέον έτοιμη βάση για Supabase με:
 
 - schema + πίνακες workflow
+- modules εργασιών + permissions ανά χρήστη
 - RLS policies για `admin` και `partner`
 - storage buckets για `photos` και `files`
 - seed για `υλικά` και `εργασίες`
@@ -11,6 +12,7 @@
 
 - Migration schema:
   - [supabase/migrations/202604300001_initial_schema.sql](/Users/konstantinos/Desktop/BIROL/supabase/migrations/202604300001_initial_schema.sql)
+  - [supabase/migrations/202605080001_task_modules.sql](/Users/konstantinos/Desktop/BIROL/supabase/migrations/202605080001_task_modules.sql)
 - Seed catalogs:
   - [supabase/seed.sql](/Users/konstantinos/Desktop/BIROL/supabase/seed.sql)
 - Generator για νέο seed από τα catalogs του app:
@@ -21,6 +23,8 @@
 ### Κύριοι πίνακες
 
 - `profiles`
+- `task_modules`
+- `profile_task_modules`
 - `tasks`
 - `task_history`
 - `task_pipeline_history`
@@ -60,6 +64,8 @@
 
 - enums
 - πίνακες
+- modules εργασιών
+- permissions ανά user για το ποια cards / workspaces βλέπει
 - indexes
 - triggers
 - RLS policies
@@ -142,7 +148,8 @@ where email = 'fibergo@example.com';
 ## Τι καλύπτει ήδη το RLS
 
 - Ο `admin` βλέπει όλα τα tasks
-- Ο `partner` βλέπει μόνο tasks που είναι ανατεθειμένα σε αυτόν
+- Ο `partner` βλέπει μόνο τα modules που του έχουν δοθεί
+- Μέσα σε επιτρεπόμενο module ο `partner` βλέπει μόνο tasks που είναι ανατεθειμένα σε αυτόν
 - Τα catalogs είναι readable από authenticated users
 - Τα uploads επιτρέπονται μόνο αν ο χρήστης έχει πρόσβαση στο task
 - Το `task_audit_log` είναι readable μόνο από όσους βλέπουν το αντίστοιχο task

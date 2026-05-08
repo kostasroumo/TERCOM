@@ -1,3 +1,4 @@
 .DS_Store
+.env.local
 tools/backup/.env.backup
 tools/backup/backups/

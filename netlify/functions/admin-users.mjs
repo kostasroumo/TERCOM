@@ -65,8 +65,21 @@ function mapProfileRow(row = {}) {
     companyName: row.company_name || "",
     title: row.title || "",
     isActive: row.is_active !== false,
+    moduleKeys: Array.isArray(row.moduleKeys) ? row.moduleKeys : Array.isArray(row.module_keys) ? row.module_keys : [],
     createdAt: row.created_at || "",
     updatedAt: row.updated_at || ""
+  };
+}
+
+function mapTaskModuleRow(row = {}) {
+  return {
+    id: row.id || "",
+    key: row.key || row.module_key || "",
+    name: row.name || "",
+    description: row.description || "",
+    icon: row.icon || row.icon_name || "tasks",
+    sortOrder: Number(row.sort_order ?? row.sortOrder) || 0,
+    isActive: row.is_active !== false
   };
 }
 
@@ -169,6 +182,129 @@ async function listProfiles() {
   return Array.isArray(payload) ? payload.map(mapProfileRow) : [];
 }
 
+async function listTaskModules() {
+  const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+  const query = new URLSearchParams({
+    select: "id,module_key,name,description,icon_name,sort_order,is_active",
+    is_active: "eq.true",
+    order: "sort_order.asc,name.asc"
+  });
+
+  const { response, payload } = await callJson(`${supabaseUrl}/rest/v1/task_modules?${query.toString()}`, {
+    method: "GET",
+    headers: serviceHeaders({
+      accept: "application/json"
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(payload?.message || payload?.error || "Απέτυχε η φόρτωση των εργασιών.");
+  }
+
+  return Array.isArray(payload) ? payload.map(mapTaskModuleRow) : [];
+}
+
+async function listProfileTaskModules() {
+  const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+  const query = new URLSearchParams({
+    select: "profile_id,module_key",
+    order: "profile_id.asc,module_key.asc"
+  });
+
+  const { response, payload } = await callJson(`${supabaseUrl}/rest/v1/profile_task_modules?${query.toString()}`, {
+    method: "GET",
+    headers: serviceHeaders({
+      accept: "application/json"
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(payload?.message || payload?.error || "Απέτυχε η φόρτωση των permissions εργασιών.");
+  }
+
+  return Array.isArray(payload) ? payload : [];
+}
+
+async function listProfilesWithModules() {
+  const [profiles, modules, assignments] = await Promise.all([
+    listProfiles(),
+    listTaskModules(),
+    listProfileTaskModules()
+  ]);
+
+  const moduleKeys = new Set(modules.map((module) => module.key));
+  const assignmentsMap = assignments.reduce((map, row) => {
+    const profileId = row.profile_id || "";
+    const moduleKey = row.module_key || "";
+
+    if (!profileId || !moduleKeys.has(moduleKey)) {
+      return map;
+    }
+
+    const existing = map.get(profileId) || [];
+    existing.push(moduleKey);
+    map.set(profileId, existing);
+    return map;
+  }, new Map());
+
+  return {
+    modules,
+    users: profiles.map((profile) => ({
+      ...profile,
+      moduleKeys: assignmentsMap.get(profile.id) || []
+    }))
+  };
+}
+
+function sanitizeModuleKeys(input, availableModules = []) {
+  const allowedKeys = new Set((availableModules || []).map((module) => module.key));
+  const values = Array.isArray(input) ? input : input == null ? [] : [input];
+
+  return [...new Set(values.map((value) => sanitizeText(value, 120)).filter((value) => allowedKeys.has(value)))];
+}
+
+async function replaceProfileTaskModules(profileId, moduleKeys, callerProfileId = null) {
+  const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+  const deleteQuery = new URLSearchParams({
+    profile_id: `eq.${profileId}`
+  });
+
+  const deleteResponse = await fetch(`${supabaseUrl}/rest/v1/profile_task_modules?${deleteQuery.toString()}`, {
+    method: "DELETE",
+    headers: serviceHeaders({
+      prefer: "return=minimal"
+    })
+  });
+
+  if (!deleteResponse.ok) {
+    const payload = await deleteResponse.json().catch(() => ({}));
+    throw new Error(payload?.message || payload?.error || "Απέτυχε η ενημέρωση των permissions εργασιών.");
+  }
+
+  if (!moduleKeys.length) {
+    return;
+  }
+
+  const rows = moduleKeys.map((moduleKey) => ({
+    profile_id: profileId,
+    module_key: moduleKey,
+    created_by: callerProfileId || null
+  }));
+
+  const { response, payload } = await callJson(`${supabaseUrl}/rest/v1/profile_task_modules`, {
+    method: "POST",
+    headers: serviceHeaders({
+      "content-type": "application/json; charset=utf-8",
+      prefer: "resolution=merge-duplicates,return=minimal"
+    }),
+    body: JSON.stringify(rows)
+  });
+
+  if (!response.ok) {
+    throw new Error(payload?.message || payload?.error || "Απέτυχε η αποθήκευση των permissions εργασιών.");
+  }
+}
+
 async function upsertProfile(profileInput) {
   const supabaseUrl = getRequiredEnv("SUPABASE_URL");
   const query = new URLSearchParams({
@@ -269,7 +405,23 @@ async function createAuthUser(userInput) {
 }
 
 async function handleCreateUser(body) {
-  return createAuthUser(body || {});
+  const modules = await listTaskModules();
+  const createdUser = await createAuthUser(body || {});
+  const requestedModuleKeys = sanitizeModuleKeys(body?.moduleKeys, modules);
+  const defaultFtthModule = modules.find((module) => module.key === "ftth")?.key || "";
+  const moduleKeys = requestedModuleKeys.length
+    ? requestedModuleKeys
+    : createdUser.role === "admin"
+      ? []
+      : defaultFtthModule
+        ? [defaultFtthModule]
+        : [];
+
+  await replaceProfileTaskModules(createdUser.id, moduleKeys, null);
+  return {
+    ...createdUser,
+    moduleKeys
+  };
 }
 
 async function handleUpdateUser(callerProfile, body) {
@@ -283,6 +435,7 @@ async function handleUpdateUser(callerProfile, body) {
     throw new Error("Ο χρήστης δεν βρέθηκε.");
   }
 
+  const modules = await listTaskModules();
   const nextRole = sanitizeRole(body.role || existingProfile.role || "partner");
   const nextIsActive = body.isActive === undefined ? existingProfile.isActive !== false : sanitizeBoolean(body.isActive);
 
@@ -294,13 +447,21 @@ async function handleUpdateUser(callerProfile, body) {
     throw new Error("Ο τρέχων admin δεν μπορεί να απενεργοποιήσει τον δικό του λογαριασμό.");
   }
 
-  return updateProfile(profileId, {
+  const updatedProfile = await updateProfile(profileId, {
     display_name: sanitizeText(body.displayName, 160) || existingProfile.displayName || existingProfile.email,
     company_name: sanitizeText(body.companyName, 160) || sanitizeText(body.displayName, 160) || existingProfile.companyName,
     title: sanitizeText(body.title, 160) || existingProfile.title || defaultTitleForRole(nextRole),
     role: nextRole,
     is_active: nextIsActive
   });
+
+  const moduleKeys = sanitizeModuleKeys(body.moduleKeys, modules);
+  await replaceProfileTaskModules(profileId, moduleKeys, callerProfile.id);
+
+  return {
+    ...updatedProfile,
+    moduleKeys
+  };
 }
 
 export async function handler(event) {
@@ -312,8 +473,8 @@ export async function handler(event) {
     const { profile: callerProfile } = await assertCallerIsAdmin(event);
 
     if (event.httpMethod === "GET") {
-      const users = await listProfiles();
-      return json(200, { users });
+      const payload = await listProfilesWithModules();
+      return json(200, payload);
     }
 
     const body = await parseJsonBody(event);

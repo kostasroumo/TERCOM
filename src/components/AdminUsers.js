@@ -5,7 +5,35 @@ const ROLE_OPTIONS = [
   { value: "partner", label: "Partner" }
 ];
 
-export function AdminUsers({ users, currentUserId, pending, error, message }) {
+function renderModuleCheckboxes(modules, selectedKeys = [], pending = false, role = "partner", namePrefix = "moduleKeys") {
+  const selected = new Set(role === "admin" ? modules.map((module) => module.key) : selectedKeys);
+
+  return `
+    <div class="module-access-grid">
+      ${(modules || [])
+        .map(
+          (module) => `
+            <label class="module-access-option${selected.has(module.key) ? " is-selected" : ""}">
+              <input
+                type="checkbox"
+                name="${escapeHtml(namePrefix)}"
+                value="${escapeHtml(module.key)}"
+                ${selected.has(module.key) ? "checked" : ""}
+                ${pending ? "disabled" : ""}
+              />
+              <span class="module-access-option__copy">
+                <strong>${escapeHtml(module.name)}</strong>
+                <small>${escapeHtml(module.description || "")}</small>
+              </span>
+            </label>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+export function AdminUsers({ users, modules, currentUserId, pending, error, message }) {
   const rows = (users || [])
     .map((user) => {
       const isCurrentUser = user.id === currentUserId;
@@ -45,6 +73,11 @@ export function AdminUsers({ users, currentUserId, pending, error, message }) {
               <option value="false"${user.isActive === false ? " selected" : ""}>Ανενεργός</option>
             </select>
           </label>
+          <div class="field field--wide">
+            <span>Ορατές εργασίες / modules</span>
+            ${renderModuleCheckboxes(modules, user.moduleKeys || [], pending || isCurrentUser && user.role === "admin", user.role)}
+            <small class="field-help">Ο admin βλέπει πάντα όλα τα ενεργά modules. Για partner εδώ κλειδώνουμε ποιες κάρτες θα εμφανίζονται στην είσοδο.</small>
+          </div>
           <div class="admin-user-row__meta">
             <span class="pill ${user.isActive === false ? "pill--cancelled" : "pill--completed"}">${escapeHtml(statusLabel)}</span>
             <span>Δημιουργήθηκε: ${escapeHtml(formatDateTime(user.createdAt))}</span>
@@ -72,6 +105,10 @@ export function AdminUsers({ users, currentUserId, pending, error, message }) {
 
         <div class="note">
           Η αφαίρεση χρήστη γίνεται ως <strong>απενεργοποίηση</strong>. Έτσι ο χρήστης βγαίνει από το ενεργό σύστημα και από τις <strong>νέες</strong> αναθέσεις, χωρίς να σβήνεται βίαια το ιστορικό του.
+        </div>
+
+        <div class="note">
+          Τα <strong>modules εργασιών</strong> καθορίζουν ποιες κάρτες θα βλέπει κάθε χρήστης μόλις συνδέεται. Μέσα σε κάθε module ο partner συνεχίζει να βλέπει μόνο τα tasks που του έχουν ανατεθεί.
         </div>
 
         ${error ? `<div class="alert-banner alert-banner--warning"><p>${escapeHtml(error)}</p></div>` : ""}
@@ -103,6 +140,11 @@ export function AdminUsers({ users, currentUserId, pending, error, message }) {
             <select name="role" ${pending ? "disabled" : ""}>
               ${ROLE_OPTIONS.map((option) => `<option value="${option.value}">${escapeHtml(option.label)}</option>`).join("")}
             </select>
+          </div>
+          <div class="field field--wide">
+            <span>Αρχικά modules</span>
+            ${renderModuleCheckboxes(modules, ["ftth"], pending)}
+            <small class="field-help">Αν δεν επιλεγεί τίποτα για partner, το σύστημα θα τον βάλει αρχικά μόνο στο FTTH.</small>
           </div>
           <div class="form-actions">
             <button class="button" type="submit" ${pending ? "disabled" : ""}>${pending ? "Αποθήκευση..." : "Προσθήκη χρήστη"}</button>

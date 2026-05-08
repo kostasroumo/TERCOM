@@ -1,12 +1,12 @@
 import { STATUS_META } from "../data/mockData.js";
 import { escapeHtml, icon } from "../lib/helpers.js";
 
-export function TaskCard(status, count, pipelineKey, technicianFilter = "") {
+export function TaskCard(status, count, pipelineKey, technicianFilter = "", moduleKey = "ftth") {
   const meta = STATUS_META[status];
   return `
     <button
       class="status-card status-card--${escapeHtml(meta.tone)}"
-      data-route="#/tasks"
+      data-route="#/module/${encodeURIComponent(moduleKey)}/tasks"
       data-filter-status="${escapeHtml(status)}"
       data-filter-pipeline="${escapeHtml(pipelineKey)}"
       ${technicianFilter ? `data-filter-technician="${escapeHtml(technicianFilter)}"` : ""}

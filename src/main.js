@@ -2,7 +2,9 @@ import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
 import { AdminUsers } from "./components/AdminUsers.js";
+import { ModuleHub } from "./components/ModuleHub.js";
 import { MATERIAL_CATALOG_SEED } from "./data/materialCatalog.js";
+import { TASK_MODULES_SEED, getLocalVisibleModuleKeys } from "./data/taskModules.js";
 import { WORK_CATALOG_SEED } from "./data/workCatalog.js";
 import {
   ASSIGNEE_OPTIONS,
@@ -47,6 +49,7 @@ const runtime = {
   session: null,
   profile: null,
   profiles: [],
+  taskModules: [],
   dashboardSummary: null,
   tasksLoaded: false,
   catalogsLoaded: false,
@@ -102,6 +105,7 @@ function loadState() {
     const parsed = JSON.parse(raw);
     parsed.ui = {
       activeTab: "main",
+      activeModuleKey: "ftth",
       showCreateModal: false,
       sidebarCollapsed: false,
       expandedAdminAssignee: "partner-1",
@@ -284,6 +288,7 @@ async function loadSupabaseState(reason = "") {
   runtime.session = payload.session;
   runtime.profile = payload.profile;
   runtime.profiles = payload.profiles;
+  runtime.taskModules = (payload.taskModules || []).map(normalizeTaskModule);
   runtime.dashboardSummary =
     payload.dashboardSummary || buildDashboardSummaryFromTasks(payload.tasks || [], payload.profiles || [], payload.profile || null);
   runtime.tasksLoaded = !!payload.tasksLoaded;
@@ -297,6 +302,7 @@ async function loadSupabaseState(reason = "") {
   state.inventory = payload.inventory?.length ? payload.inventory : MATERIAL_CATALOG_SEED.map(normalizeInventoryItem);
   state.currentRole = payload.profile?.role || "partner";
   state.currentUserId = payload.profile?.id || "";
+  ensureActiveModuleKey(state.ui.activeModuleKey);
   updateBootstrapDiagnostics(payload.bootstrapMeta, reason);
   state.ui.showCreateModal = false;
   state.ui.validationComment = "";
@@ -322,6 +328,7 @@ async function loadSupabaseState(reason = "") {
 function clearSupabaseLiveState() {
   runtime.profile = null;
   runtime.profiles = [];
+  runtime.taskModules = [];
   runtime.dashboardSummary = null;
   runtime.tasksLoaded = false;
   runtime.catalogsLoaded = false;
@@ -345,6 +352,7 @@ function clearSupabaseLiveState() {
   runtime.activeAdminUsersLoad = null;
   state.currentRole = "admin";
   state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
+  state.ui.activeModuleKey = "ftth";
   resetUiStateForLiveSession();
   saveState();
 }
@@ -454,9 +462,90 @@ function normalizeManagedUser(user) {
     companyName: user.companyName || user.company_name || "",
     title: user.title || "",
     isActive: user.isActive !== false,
+    moduleKeys: Array.isArray(user.moduleKeys) ? user.moduleKeys : Array.isArray(user.module_keys) ? user.module_keys : [],
     createdAt: user.createdAt || user.created_at || "",
     updatedAt: user.updatedAt || user.updated_at || ""
   };
+}
+
+function normalizeTaskModule(module, index = 0) {
+  return {
+    id: module.id || `module-${module.key || index}`,
+    key: module.key || module.moduleKey || module.module_key || "ftth",
+    name: module.name || "Workspace",
+    description: module.description || "",
+    icon: module.icon || module.icon_name || "tasks",
+    accent: module.accent || `module-${module.key || module.module_key || "ftth"}`,
+    sortOrder: Number(module.sortOrder ?? module.sort_order ?? (index + 1) * 10) || (index + 1) * 10,
+    isActive: module.isActive !== false && module.is_active !== false
+  };
+}
+
+function getAllTaskModules() {
+  const source = isSupabaseMode() && runtime.taskModules.length ? runtime.taskModules : TASK_MODULES_SEED;
+
+  return source
+    .map(normalizeTaskModule)
+    .filter((module) => module.isActive !== false)
+    .sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+
+      return left.name.localeCompare(right.name, "el");
+    });
+}
+
+function getVisibleTaskModules() {
+  const modules = getAllTaskModules();
+
+  if (state.currentRole === "admin") {
+    return modules;
+  }
+
+  if (isSupabaseMode() && isAuthenticated()) {
+    return modules;
+  }
+
+  const allowedKeys = new Set(getLocalVisibleModuleKeys(state.currentUserId, state.currentRole));
+  return modules.filter((module) => allowedKeys.has(module.key));
+}
+
+function getTaskModuleByKey(moduleKey) {
+  if (!moduleKey) {
+    return null;
+  }
+
+  return getAllTaskModules().find((module) => module.key === moduleKey) || null;
+}
+
+function getFallbackModuleKey() {
+  return getVisibleTaskModules()[0]?.key || "";
+}
+
+function ensureActiveModuleKey(candidateKey = "") {
+  const nextKey = getTaskModuleByKey(candidateKey) && getVisibleTaskModules().some((module) => module.key === candidateKey)
+    ? candidateKey
+    : getFallbackModuleKey();
+
+  state.ui.activeModuleKey = nextKey;
+  return nextKey;
+}
+
+function buildModuleDashboardRoute(moduleKey) {
+  return `#/module/${encodeURIComponent(moduleKey)}`;
+}
+
+function buildModuleTasksRoute(moduleKey) {
+  return `#/module/${encodeURIComponent(moduleKey)}/tasks`;
+}
+
+function buildModuleTaskDetailRoute(moduleKey, taskId) {
+  return `#/module/${encodeURIComponent(moduleKey)}/tasks/${encodeURIComponent(taskId)}`;
+}
+
+function buildModuleReportRoute(moduleKey) {
+  return `#/module/${encodeURIComponent(moduleKey)}/reports/open-tasks`;
 }
 
 async function ensureAdminUsersLoaded() {
@@ -474,8 +563,12 @@ async function ensureAdminUsersLoaded() {
 
   runtime.adminUsersError = "";
   runtime.activeAdminUsersLoad = (async () => {
-    const users = await fetchAdminUsers(runtime.session);
-    runtime.adminUsers = users.map(normalizeManagedUser);
+    const payload = await fetchAdminUsers(runtime.session);
+    runtime.adminUsers = (payload.users || []).map(normalizeManagedUser);
+    if (payload.modules?.length) {
+      runtime.taskModules = payload.modules.map(normalizeTaskModule);
+      ensureActiveModuleKey(state.ui.activeModuleKey);
+    }
     runtime.adminUsersLoaded = true;
     runtime.adminUsersError = "";
     saveState();
@@ -545,7 +638,8 @@ async function handleAdminUserCreate(formData) {
       displayName: String(formData.get("displayName") || ""),
       companyName: String(formData.get("companyName") || ""),
       title: String(formData.get("title") || ""),
-      role: String(formData.get("role") || "partner")
+      role: String(formData.get("role") || "partner"),
+      moduleKeys: formData.getAll("moduleKeys").map((value) => String(value || ""))
     });
 
     upsertManagedUserInRuntime(user);
@@ -584,6 +678,7 @@ async function handleAdminUserUpdate(formData) {
       companyName: String(formData.get("companyName") || ""),
       title: String(formData.get("title") || ""),
       role: String(formData.get("role") || existingUser?.role || "partner"),
+      moduleKeys: formData.getAll("moduleKeys").map((value) => String(value || "")),
       isActive: formData.get("isActive") == null
         ? existingUser?.isActive !== false
         : String(formData.get("isActive") || "true") === "true"
@@ -615,6 +710,9 @@ async function refreshSupabaseDashboardSummary() {
   }
   if (payload.profiles?.length) {
     runtime.profiles = payload.profiles;
+  }
+  if (payload.taskModules?.length) {
+    runtime.taskModules = payload.taskModules.map(normalizeTaskModule);
   }
   runtime.dashboardSummary =
     payload.dashboardSummary || buildDashboardSummaryFromTasks(state.tasks, runtime.profiles, runtime.profile);
@@ -714,6 +812,7 @@ function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = n
           title: task.title,
           address: task.address,
           city: task.city,
+          moduleKey: task.moduleKey,
           pipeline: task.pipeline,
           status: task.status,
           assignedUserName: task.assignedUserName || ""
@@ -725,6 +824,7 @@ function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = n
           title: task.title,
           address: task.address,
           city: task.city,
+          moduleKey: task.moduleKey,
           pipeline: task.pipeline,
           status: task.status,
           assignedUserName: task.assignedUserName || ""
@@ -734,6 +834,7 @@ function buildDashboardSummaryFromTasks(tasks, profiles = [], currentProfile = n
         title: task.title,
         address: task.address,
         city: task.city,
+        moduleKey: task.moduleKey,
         pipeline: task.pipeline,
         status: task.status,
         assignedUserName: task.assignedUserName || "",
@@ -762,6 +863,29 @@ function getSummaryCurrentPipelineTotal(summary, assigneeId, pipelineKey) {
 
 function getSummaryStatusCount(summary, assigneeId, pipelineKey, statusKey) {
   return summary.statusCounts.find((entry) => entry.assigneeId === assigneeId && entry.pipeline === pipelineKey && entry.status === statusKey)?.count || 0;
+}
+
+function getVisibleModuleTaskCounts() {
+  const modules = getVisibleTaskModules();
+  const counts = new Map(modules.map((module) => [module.key, 0]));
+  const currentUser = getCurrentUser();
+
+  state.tasks.forEach((task) => {
+    if (!counts.has(task.moduleKey) || isTaskArchived(task)) {
+      return;
+    }
+
+    if (state.currentRole === "admin") {
+      counts.set(task.moduleKey, (counts.get(task.moduleKey) || 0) + 1);
+      return;
+    }
+
+    if (task.assignedUserId === currentUser.id && task.status !== "cancelled") {
+      counts.set(task.moduleKey, (counts.get(task.moduleKey) || 0) + 1);
+    }
+  });
+
+  return counts;
 }
 
 function renderAuthGate() {
@@ -904,11 +1028,11 @@ function getRoute() {
   const hash = window.location.hash.replace(/^#\/?/, "");
 
   if (!hash || hash === "dashboard") {
-    return { view: "dashboard" };
+    return { view: "module-hub" };
   }
 
   if (hash === "tasks") {
-    return { view: "tasks" };
+    return { view: "tasks", moduleKey: state.ui.activeModuleKey || "ftth" };
   }
 
   if (hash === "users") {
@@ -916,17 +1040,43 @@ function getRoute() {
   }
 
   if (hash === "reports/open-tasks") {
-    return { view: "report", reportType: "open-tasks" };
+    return { view: "report", moduleKey: state.ui.activeModuleKey || "ftth", reportType: "open-tasks" };
   }
 
   if (hash.startsWith("tasks/")) {
     return {
       view: "detail",
+      moduleKey: state.ui.activeModuleKey || "ftth",
       taskId: decodeURIComponent(hash.slice("tasks/".length))
     };
   }
 
-  return { view: "dashboard" };
+  if (hash.startsWith("module/")) {
+    const segments = hash.split("/");
+    const moduleKey = decodeURIComponent(segments[1] || "");
+
+    if (segments.length === 2) {
+      return { view: "dashboard", moduleKey };
+    }
+
+    if (segments[2] === "tasks") {
+      if (segments.length === 3) {
+        return { view: "tasks", moduleKey };
+      }
+
+      return {
+        view: "detail",
+        moduleKey,
+        taskId: decodeURIComponent(segments.slice(3).join("/"))
+      };
+    }
+
+    if (segments[2] === "reports" && segments[3] === "open-tasks") {
+      return { view: "report", moduleKey, reportType: "open-tasks" };
+    }
+  }
+
+  return { view: "module-hub" };
 }
 
 function getCurrentRoleUsers() {
@@ -953,6 +1103,15 @@ function getCurrentUser() {
   }
 
   return getCurrentRoleUsers().find((user) => user.id === state.currentUserId) || getCurrentRoleUsers()[0];
+}
+
+function getSelectedModuleKey(route = getRoute()) {
+  if (route?.moduleKey && getVisibleTaskModules().some((module) => module.key === route.moduleKey)) {
+    state.ui.activeModuleKey = route.moduleKey;
+    return route.moduleKey;
+  }
+
+  return ensureActiveModuleKey(state.ui.activeModuleKey);
 }
 
 function renderBootstrapIndicator(currentUser) {
@@ -1069,6 +1228,7 @@ function normalizeTask(task) {
   return {
     ...task,
     taskCode: task.taskCode || task.id,
+    moduleKey: task.moduleKey || task.module_key || "ftth",
     pipeline: task.pipeline || "autopsia",
     serviceProvider,
     adminNotes: task.adminNotes ?? task.notes ?? "",
@@ -1190,6 +1350,7 @@ function normalizeState(sourceState) {
     tasks: (sourceState.tasks || []).map(normalizeTask),
     inventory: (sourceState.inventory?.length ? sourceState.inventory : MATERIAL_CATALOG_SEED).map(normalizeInventoryItem),
     ui: {
+      activeModuleKey: "ftth",
       materialSearch: "",
       selectedMaterialId: "",
       workSearch: "",
@@ -1239,13 +1400,15 @@ function restoreWorkSearchFocus(selectionStart, selectionEnd) {
   });
 }
 
-function getVisibleTasks() {
+function getVisibleTasks(moduleKey = getSelectedModuleKey()) {
+  const scopedTasks = state.tasks.filter((task) => (moduleKey ? task.moduleKey === moduleKey : true));
+
   if (state.currentRole !== "partner") {
-    return state.tasks.filter((task) => !isTaskArchived(task));
+    return scopedTasks.filter((task) => !isTaskArchived(task));
   }
 
   const currentUser = getCurrentUser();
-  return state.tasks.filter((task) => !isTaskArchived(task) && task.assignedUserId === currentUser.id && task.status !== "cancelled");
+  return scopedTasks.filter((task) => !isTaskArchived(task) && task.assignedUserId === currentUser.id && task.status !== "cancelled");
 }
 
 function hasRequiredAutopsiaCertificate(task) {
@@ -1380,8 +1543,8 @@ function canCreateTasks() {
   return state.currentRole === "admin";
 }
 
-function getFilteredTasks() {
-  return getVisibleTasks().filter((task) => {
+function getFilteredTasks(moduleKey = getSelectedModuleKey()) {
+  return getVisibleTasks(moduleKey).filter((task) => {
     const searchText = state.filters.search.trim().toLowerCase();
     const matchesSearch =
       !searchText ||
@@ -1419,7 +1582,7 @@ function getFilteredTasks() {
   });
 }
 
-function renderPipelineStatusSections(tasks, technicianFilter = "") {
+function renderPipelineStatusSections(tasks, technicianFilter = "", moduleKey = getSelectedModuleKey()) {
   return PIPELINE_ORDER.map((pipelineKey) => {
     const pipelineTasks = tasks.filter((task) => task.pipeline === pipelineKey);
     const counts = STATUS_ORDER.map((status) => [status, countTasksForPipelineStatus(tasks, pipelineKey, status)]);
@@ -1435,14 +1598,14 @@ function renderPipelineStatusSections(tasks, technicianFilter = "") {
           <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${pipelineTasks.length} τρέχουσες</span>
         </div>
         <div class="status-grid">
-          ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey, technicianFilter)).join("")}
+          ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey, technicianFilter, moduleKey)).join("")}
         </div>
       </section>
     `;
   }).join("");
 }
 
-function renderPipelineStatusSectionsFromSummary(summary, assigneeId = "") {
+function renderPipelineStatusSectionsFromSummary(summary, assigneeId = "", moduleKey = getSelectedModuleKey()) {
   return PIPELINE_ORDER.map((pipelineKey) => {
     const counts = STATUS_ORDER.map((status) => [status, getSummaryStatusCount(summary, assigneeId || "unassigned", pipelineKey, status)]);
     const currentPipelineTotal = getSummaryCurrentPipelineTotal(summary, assigneeId || "unassigned", pipelineKey);
@@ -1458,15 +1621,15 @@ function renderPipelineStatusSectionsFromSummary(summary, assigneeId = "") {
           <span class="pill pill--${escapeHtml(PIPELINE_META[pipelineKey].tone)}">${currentPipelineTotal} τρέχουσες</span>
         </div>
         <div class="status-grid">
-          ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey, assigneeId)).join("")}
+          ${counts.map(([status, count]) => TaskCard(status, count, pipelineKey, assigneeId, moduleKey)).join("")}
         </div>
       </section>
     `;
   }).join("");
 }
 
-function renderAdminDashboard(visibleTasks) {
-  const archivedTasks = state.tasks.filter((task) => isTaskArchived(task));
+function renderAdminDashboard(visibleTasks, moduleKey = getSelectedModuleKey()) {
+  const archivedTasks = state.tasks.filter((task) => isTaskArchived(task) && task.moduleKey === moduleKey);
   const assigneeSections = [
     ...getAssignableUsers().map((assignee) => ({
       id: assignee.id,
@@ -1503,7 +1666,7 @@ function renderAdminDashboard(visibleTasks) {
 
               ${
                 state.ui.expandedAdminAssignee === section.id
-                  ? `<div class="assignee-section__body">${renderPipelineStatusSections(section.tasks, section.id)}</div>`
+                  ? `<div class="assignee-section__body">${renderPipelineStatusSections(section.tasks, section.id, moduleKey)}</div>`
                   : ""
               }
             </section>
@@ -1607,6 +1770,7 @@ function renderAdminDashboardFromSummary(summary) {
 
 function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
   const hasRouteFilter = !!filterStatus;
+  const moduleKey = getSelectedModuleKey();
   return `
     <section class="surface">
       <div class="section-head">
@@ -1618,7 +1782,7 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
           <p class="section-copy">${escapeHtml(copy)}</p>
           ${
             hasRouteFilter
-              ? `<button class="button button--ghost queue-head-action" data-route="#/tasks" data-filter-status="${escapeHtml(filterStatus)}">${tasks.length} συνολικά</button>`
+              ? `<button class="button button--ghost queue-head-action" data-route="${escapeHtml(buildModuleTasksRoute(moduleKey))}" data-filter-status="${escapeHtml(filterStatus)}">${tasks.length} συνολικά</button>`
               : `<span class="pill pill--pipeline-autopsia">${tasks.length} συνολικά</span>`
           }
         </div>
@@ -1653,8 +1817,10 @@ function render() {
   }
 
   const route = getRoute();
-  const visibleTasks = getVisibleTasks();
-  const filteredTasks = getFilteredTasks();
+  const selectedModuleKey = getSelectedModuleKey(route);
+  const selectedModule = getTaskModuleByKey(selectedModuleKey);
+  const visibleTasks = selectedModule ? getVisibleTasks(selectedModuleKey) : [];
+  const filteredTasks = selectedModule ? getFilteredTasks(selectedModuleKey) : [];
   const currentUser = getCurrentUser();
   const showManualSwitches = !isSupabaseMode();
   const isSessionHydrating = isSupabaseMode() && hasAuthSession() && !hasLiveProfile();
@@ -1663,6 +1829,19 @@ function render() {
     : currentUser?.role
       ? ROLE_LABELS[currentUser.role] || currentUser.role
       : ROLE_LABELS[state.currentRole];
+  const topbarTitle =
+    route.view === "module-hub"
+      ? "Επιλογή εργασίας"
+      : route.view === "users"
+        ? "Διαχείριση χρηστών"
+        : route.view === "report"
+          ? `${selectedModule?.name || "Workspace"} · Αναφορά ανοιχτών εργασιών`
+          : route.view === "tasks"
+            ? `${selectedModule?.name || "Workspace"} · Εργασίες`
+            : route.view === "detail"
+              ? `${selectedModule?.name || "Workspace"} · Καρτέλα εργασίας`
+              : `${selectedModule?.name || "Workspace"} · Dashboard`;
+  const canOpenModuleViews = !!selectedModule;
 
   app.innerHTML = `
     <div class="app-shell${state.ui.sidebarCollapsed ? " is-sidebar-collapsed" : ""}">
@@ -1689,14 +1868,24 @@ function render() {
         </div>
 
         <nav class="nav">
-          <button class="nav-link${route.view === "dashboard" ? " is-active" : ""}" data-route="#/dashboard">
+          <button class="nav-link${route.view === "module-hub" ? " is-active" : ""}" data-route="#/dashboard">
             <span class="nav-link__icon">${icon("dashboard")}</span>
-            <span class="nav-link__label">Dashboard</span>
-          </button>
-          <button class="nav-link${route.view === "tasks" || route.view === "detail" ? " is-active" : ""}" data-route="#/tasks">
-            <span class="nav-link__icon">${icon("tasks")}</span>
             <span class="nav-link__label">Εργασίες</span>
           </button>
+          ${
+            canOpenModuleViews
+              ? `
+                <button class="nav-link${route.view === "dashboard" ? " is-active" : ""}" data-route="${escapeHtml(buildModuleDashboardRoute(selectedModuleKey))}">
+                  <span class="nav-link__icon">${icon("network")}</span>
+                  <span class="nav-link__label">Dashboard</span>
+                </button>
+                <button class="nav-link${route.view === "tasks" || route.view === "detail" ? " is-active" : ""}" data-route="${escapeHtml(buildModuleTasksRoute(selectedModuleKey))}">
+                  <span class="nav-link__icon">${icon("tasks")}</span>
+                  <span class="nav-link__label">Tasks</span>
+                </button>
+              `
+              : ""
+          }
           ${
             canManageUsers()
               ? `
@@ -1707,18 +1896,24 @@ function render() {
               `
               : ""
           }
-          <button class="nav-link nav-link--action${route.view === "report" ? " is-active" : ""}" data-export-open-pdf>
-            <span class="nav-link__icon">${icon("print")}</span>
-            <span class="nav-link__label">Export PDF</span>
-          </button>
+          ${
+            canOpenModuleViews
+              ? `
+                <button class="nav-link nav-link--action${route.view === "report" ? " is-active" : ""}" data-export-open-pdf>
+                  <span class="nav-link__icon">${icon("print")}</span>
+                  <span class="nav-link__label">Export PDF</span>
+                </button>
+              `
+              : ""
+          }
         </nav>
       </aside>
 
       <main class="workspace">
         <header class="topbar surface">
           <div>
-            <p class="eyebrow">Operational View</p>
-            <h1>${route.view === "dashboard" ? "Κέντρο ελέγχου εργασιών πεδίου" : route.view === "tasks" ? "Διαχείριση εργασιών" : route.view === "users" ? "Διαχείριση χρηστών" : route.view === "report" ? "Αναφορά ανοιχτών εργασιών" : "Καρτέλα εργασίας"}</h1>
+            <p class="eyebrow">${route.view === "module-hub" ? "Workspace Selector" : "Operational View"}</p>
+            <h1>${escapeHtml(topbarTitle)}</h1>
           </div>
 
           <div class="topbar__controls">
@@ -1754,7 +1949,7 @@ function render() {
                 `
             }
 
-            ${canCreateTasks() ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
+            ${canCreateTasks() && canOpenModuleViews && route.view !== "module-hub" && route.view !== "users" ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
             ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
           </div>
         </header>
@@ -1765,11 +1960,11 @@ function render() {
             : ""
         }
 
-        ${renderView(route, visibleTasks, filteredTasks, currentUser)}
+        ${renderView(route, visibleTasks, filteredTasks, currentUser, selectedModule)}
       </main>
     </div>
 
-    ${state.ui.showCreateModal ? renderCreateModal() : ""}
+    ${state.ui.showCreateModal && canOpenModuleViews ? renderCreateModal(selectedModule) : ""}
   `;
 
   if (route.view === "report" && state.ui.reportAutoPrint) {
@@ -1779,7 +1974,7 @@ function render() {
   }
 }
 
-function renderView(route, visibleTasks, filteredTasks, currentUser) {
+function renderView(route, visibleTasks, filteredTasks, currentUser, selectedModule) {
   if (isSupabaseMode() && hasAuthSession() && !hasLiveProfile()) {
     return `
       <section class="surface empty-screen">
@@ -1788,6 +1983,20 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
         ${runtime.syncError ? `<button class="button button--ghost" data-retry-bootstrap>Ξανά προσπάθεια</button>` : ""}
       </section>
     `;
+  }
+
+  if (route.view === "module-hub") {
+    if (isSupabaseMode() && isAuthenticated() && !runtime.tasksLoaded) {
+      ensureSupabaseTasksLoaded().catch(() => {});
+    }
+
+    return ModuleHub({
+      modules: getVisibleTaskModules(),
+      counts: getVisibleModuleTaskCounts(),
+      countsReady: !isSupabaseMode() || runtime.tasksLoaded,
+      selectedModuleKey: state.ui.activeModuleKey,
+      currentRole: state.currentRole
+    });
   }
 
   if (route.view === "users") {
@@ -1826,6 +2035,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
 
     return AdminUsers({
       users: runtime.adminUsers,
+      modules: getAllTaskModules(),
       currentUserId: currentUser.id,
       pending: runtime.adminUsersPending,
       error: runtime.adminUsersError,
@@ -1833,7 +2043,17 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
     });
   }
 
-  if (isSupabaseMode() && (route.view === "tasks" || route.view === "report") && !runtime.tasksLoaded) {
+  if (!selectedModule) {
+    return `
+      <section class="surface empty-screen">
+        <h2>Δεν υπάρχει διαθέσιμο workspace</h2>
+        <p>Ο λογαριασμός δεν έχει πρόσβαση σε κάποια εργασία για να ανοίξει dashboard ή λίστα.</p>
+        <button class="button button--ghost" data-route="#/dashboard">Επιστροφή στις κάρτες</button>
+      </section>
+    `;
+  }
+
+  if (isSupabaseMode() && (route.view === "dashboard" || route.view === "tasks" || route.view === "report") && !runtime.tasksLoaded) {
     ensureSupabaseTasksLoaded().catch((error) => {
       runtime.syncError = error.message;
       render();
@@ -1843,6 +2063,18 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       <section class="surface empty-screen">
         <h2>Φόρτωση λίστας εργασιών</h2>
         <p>Ετοιμάζουμε τις εργασίες από τη βάση δεδομένων μόνο για τη συγκεκριμένη οθόνη.</p>
+      </section>
+    `;
+  }
+
+  if (route.view === "dashboard") {
+    if (state.currentRole === "admin") {
+      return renderAdminDashboard(visibleTasks, selectedModule.key);
+    }
+
+    return `
+      <section class="pipeline-dashboard">
+        ${renderPipelineStatusSections(visibleTasks, "", selectedModule.key)}
       </section>
     `;
   }
@@ -1884,7 +2116,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       return `
         <section class="surface empty-screen">
           <h2>Η εργασία δεν βρέθηκε</h2>
-          <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
+          <button class="button" data-route="${escapeHtml(buildModuleTasksRoute(selectedModule.key))}">Επιστροφή στη λίστα</button>
         </section>
       `;
     }
@@ -1896,12 +2128,22 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       });
     }
 
+    if (task.moduleKey !== selectedModule.key) {
+      return `
+        <section class="surface empty-screen">
+          <h2>Η εργασία ανήκει σε άλλο module</h2>
+          <p>Άνοιξε την εργασία από τη σωστή κάρτα για να δεις το αντίστοιχο flow.</p>
+          <button class="button" data-route="${escapeHtml(buildModuleDashboardRoute(selectedModule.key))}">Επιστροφή στο dashboard</button>
+        </section>
+      `;
+    }
+
     if (state.currentRole === "partner" && !visibleTasks.some((visibleTask) => visibleTask.id === task.id)) {
       return `
         <section class="surface empty-screen">
           <h2>Δεν έχεις πρόσβαση σε αυτή την εργασία</h2>
           <p>Η εργασία δεν σου έχει ανατεθεί από τον admin.</p>
-          <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
+          <button class="button" data-route="${escapeHtml(buildModuleTasksRoute(selectedModule.key))}">Επιστροφή στη λίστα</button>
         </section>
       `;
     }
@@ -1926,7 +2168,7 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
           <h2>Η εργασία έχει αρχειοθετηθεί</h2>
           <p>Η εργασία αφαιρέθηκε από τις ενεργές λίστες και το dashboard, χωρίς να χαθεί το ιστορικό της.</p>
           <p>${escapeHtml(task.archivedBy || "Admin")} · ${escapeHtml(task.archivedAt ? formatDateTime(task.archivedAt) : "Χωρίς καταγραφή ώρας")}</p>
-          <button class="button" data-route="#/tasks">Επιστροφή στη λίστα</button>
+          <button class="button" data-route="${escapeHtml(buildModuleTasksRoute(selectedModule.key))}">Επιστροφή στη λίστα</button>
         </section>
       `;
     }
@@ -1946,29 +2188,15 @@ function renderView(route, visibleTasks, filteredTasks, currentUser) {
       selectedWork: (runtime.workCatalog?.length ? runtime.workCatalog : WORK_CATALOG_SEED).find((item) => item.id === state.ui.selectedWorkId) || null,
       currentRoleLabel: ROLE_LABELS[state.currentRole],
       currentUserName: currentUser.name,
+      tasksRoute: buildModuleTasksRoute(selectedModule.key),
       validationComment: state.ui.validationComment,
       cancellationComment: state.ui.cancellationComment
     });
   }
 
-  if (state.currentRole === "admin") {
-    if (isSupabaseMode()) {
-      return renderAdminDashboardFromSummary(getDashboardSummary());
-    }
-    return renderAdminDashboard(visibleTasks);
-  }
-
-  if (isSupabaseMode()) {
-    return `
-      <section class="pipeline-dashboard">
-        ${renderPipelineStatusSectionsFromSummary(getDashboardSummary(), currentUser.id)}
-      </section>
-    `;
-  }
-
   return `
     <section class="pipeline-dashboard">
-      ${renderPipelineStatusSections(visibleTasks)}
+      ${renderPipelineStatusSections(visibleTasks, "", selectedModule.key)}
     </section>
   `;
 }
@@ -2072,7 +2300,8 @@ function renderOpenTasksReport(openTasks) {
 }
 
 function openOpenTasksReport() {
-  const openTasks = getVisibleTasks().filter((task) => !["completed", "cancelled"].includes(task.status));
+  const moduleKey = getSelectedModuleKey();
+  const openTasks = getVisibleTasks(moduleKey).filter((task) => !["completed", "cancelled"].includes(task.status));
 
   if (!openTasks.length) {
     window.alert("Δεν υπάρχουν ανοιχτές εργασίες για εξαγωγή.");
@@ -2080,15 +2309,15 @@ function openOpenTasksReport() {
   }
 
   const currentHash = window.location.hash || "#/dashboard";
-  state.ui.exportReturnRoute = currentHash.startsWith("#/reports/")
+  state.ui.exportReturnRoute = currentHash.includes("/reports/")
     ? state.ui.exportReturnRoute || "#/dashboard"
     : currentHash;
   state.ui.reportAutoPrint = true;
   saveState();
-  window.location.hash = "#/reports/open-tasks";
+  window.location.hash = buildModuleReportRoute(moduleKey);
 }
 
-function renderCreateModal() {
+function renderCreateModal(selectedModule = getTaskModuleByKey(getSelectedModuleKey())) {
   return `
     <div class="modal-backdrop">
       <div class="modal surface">
@@ -2101,6 +2330,10 @@ function renderCreateModal() {
         </div>
 
         <form class="form-grid" data-create-task-form>
+          <div class="field">
+            <span>Module</span>
+            <input value="${escapeHtml(selectedModule?.name || "Workspace")}" disabled />
+          </div>
           <div class="field">
             <span>Τίτλος</span>
             <input name="title" placeholder="π.χ. Αυτοψία readiness" required />
@@ -2194,13 +2427,20 @@ function handleClick(event) {
       state.filters.pipeline = filterPipeline || "all";
       state.filters.technician = filterTechnician || "all";
     }
-    if (!hasDashboardFilters && nextRoute === "#/tasks") {
+    if (nextRoute?.startsWith("#/module/")) {
+      const routePath = nextRoute.replace(/^#\/?/, "");
+      const moduleKey = decodeURIComponent(routePath.split("/")[1] || "");
+      if (moduleKey) {
+        state.ui.activeModuleKey = moduleKey;
+      }
+    }
+    if (!hasDashboardFilters && (nextRoute === "#/tasks" || nextRoute?.includes("/tasks"))) {
       resetTaskFilters();
     }
     if (hasDashboardFilters) {
       saveState();
     }
-    if (nextRoute?.startsWith("#/tasks") || nextRoute?.startsWith("#/dashboard")) {
+    if (nextRoute?.startsWith("#/tasks") || nextRoute?.startsWith("#/dashboard") || nextRoute?.startsWith("#/module/")) {
       state.ui.validationComment = "";
       state.ui.cancellationComment = "";
       state.ui.materialSearch = "";
@@ -2261,6 +2501,8 @@ function handleClick(event) {
 
   const taskTarget = event.target.closest("[data-open-task]");
   if (taskTarget) {
+    const taskId = taskTarget.getAttribute("data-open-task") || "";
+    const task = getTaskById(taskId);
     state.ui.activeTab = "main";
     state.ui.validationComment = "";
     state.ui.cancellationComment = "";
@@ -2268,8 +2510,11 @@ function handleClick(event) {
     state.ui.selectedMaterialId = "";
     state.ui.workSearch = "";
     state.ui.selectedWorkId = "";
+    if (task?.moduleKey) {
+      state.ui.activeModuleKey = task.moduleKey;
+    }
     saveState();
-    window.location.hash = `#/tasks/${encodeURIComponent(taskTarget.getAttribute("data-open-task"))}`;
+    window.location.hash = buildModuleTaskDetailRoute(task?.moduleKey || getSelectedModuleKey(), taskId);
     return;
   }
 
@@ -2342,6 +2587,7 @@ function handleChange(event) {
   if (event.target.matches("[data-role-switch]")) {
     state.currentRole = event.target.value;
     state.currentUserId = USER_DIRECTORY[state.currentRole][0].id;
+    ensureActiveModuleKey(state.ui.activeModuleKey);
     if (!canCreateTasks()) {
       state.ui.showCreateModal = false;
     }
@@ -2354,6 +2600,7 @@ function handleChange(event) {
 
   if (event.target.matches("[data-user-switch]")) {
     state.currentUserId = event.target.value;
+    ensureActiveModuleKey(state.ui.activeModuleKey);
     saveState();
     render();
     return;
@@ -2570,6 +2817,7 @@ function createTaskFromForm(formData) {
   const startDate = formData.get("startDate");
   const createdAt = new Date().toISOString();
   const pipeline = formData.get("pipeline") || "autopsia";
+  const moduleKey = getSelectedModuleKey();
   const selectedTeamId = formData.get("resourceTeam") || "";
   const selectedTeamUser = getAssignableUserById(selectedTeamId);
   const hasDirectAssignment = !!selectedTeamUser;
@@ -2577,6 +2825,7 @@ function createTaskFromForm(formData) {
   const newTask = {
     id: createUuid(),
     taskCode: createId("TASK"),
+    moduleKey,
     title: formData.get("title"),
     type: inferTaskTypeFromPipeline(pipeline),
     pipeline,
@@ -2660,7 +2909,7 @@ function createTaskFromForm(formData) {
   state.ui.showCreateModal = false;
   state.ui.activeTab = "main";
   saveState();
-  window.location.hash = `#/tasks/${encodeURIComponent(newTask.id)}`;
+  window.location.hash = buildModuleTaskDetailRoute(moduleKey, newTask.id);
   render();
   queueSupabaseTaskSync(newTask, null, newTask.history[0]);
 }
@@ -3056,7 +3305,7 @@ function handleWorkflow(taskId, action) {
     state.ui.validationComment = "";
     state.ui.cancellationComment = "";
     saveState();
-    window.location.hash = "#/tasks";
+    window.location.hash = buildModuleTasksRoute(getSelectedModuleKey());
     render();
     return;
   }

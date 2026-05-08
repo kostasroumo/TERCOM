@@ -239,6 +239,26 @@ export function icon(name) {
         <path d="m19.14 12.94.86-1.49-1.7-2.94-1.7.3a5.58 5.58 0 0 0-1.23-.71L14.93 6h-3.4l-.44 2.1c-.43.17-.84.4-1.23.7l-1.7-.29L6.46 11.45l.86 1.49c-.04.35-.04.71 0 1.06l-.86 1.49 1.7 2.94 1.7-.3c.39.31.8.54 1.23.71l.44 2.1h3.4l.44-2.1c.43-.17.84-.4 1.23-.7l1.7.29 1.7-2.94-.86-1.49c.04-.35.04-.71 0-1.06ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"></path>
       </svg>
     `,
+    network: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M10 3h4v4h-1v2.17a5.02 5.02 0 0 1 3.83 3.83H19v4h-4v-2h1.79A3.01 3.01 0 0 0 13 11.21V13h1v4h-4v-4h1v-1.79A3.01 3.01 0 0 0 7.21 15H9v2H5v-4h2.17A5.02 5.02 0 0 1 11 9.17V7h-1V3Zm2 2v0h0v0Zm-1 10v0h2v0h-2Z"></path>
+      </svg>
+    `,
+    smart: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 2h10a2 2 0 0 1 2 2v16l-7-3-7 3V4a2 2 0 0 1 2-2Zm5 3a4 4 0 0 0-2.65 7l-.35 2h6l-.35-2A4 4 0 0 0 12 5Zm-1 11v1h2v-1h-2Z"></path>
+      </svg>
+    `,
+    wrench: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M22 6.9 17.1 12l-2.8-2.8L19.1 4A5 5 0 0 0 12 9.1l-7.9 7.9a2 2 0 1 0 2.8 2.8L14.8 12A5 5 0 0 0 22 6.9Z"></path>
+      </svg>
+    `,
+    briefcase: `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 3h6a2 2 0 0 1 2 2v2h3a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a2 2 0 0 1 2-2h3V5a2 2 0 0 1 2-2Zm0 4h6V5H9v2Zm11 5H4v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6Z"></path>
+      </svg>
+    `,
     print: `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M7 8V3h10v5H7Zm8-2V5H9v1h6Zm3 3a3 3 0 0 1 3 3v4h-3v5H6v-5H3v-4a3 3 0 0 1 3-3h12Zm-2 10v-5H8v5h8Zm2-5h1v-2a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v2h1v-2h12v2Z"></path>

@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +6,36 @@ import { handler as adminUsersHandler } from './netlify/functions/admin-users.mj
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = __dirname;
+
+function loadLocalEnvFile() {
+  const envPath = path.join(rootDir, ".env.local");
+  if (!existsSync(envPath)) {
+    return;
+  }
+
+  const fileContent = readFileSync(envPath, "utf8");
+  for (const rawLine of fileContent.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, "");
+
+    if (key && process.env[key] == null) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadLocalEnvFile();
+
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 

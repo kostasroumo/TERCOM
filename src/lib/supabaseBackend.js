@@ -90,6 +90,18 @@ function mapWorkCatalogRow(row) {
   };
 }
 
+function mapTaskModuleRow(row) {
+  return {
+    id: row.id,
+    key: row.key || row.module_key,
+    name: row.name || "",
+    description: row.description || "",
+    icon: row.icon || row.icon_name || "tasks",
+    sortOrder: Number(row.sortOrder ?? row.sort_order) || 0,
+    isActive: row.isActive !== false && row.is_active !== false
+  };
+}
+
 function toNullableIsoDateTime(value) {
   const isoValue = toIsoDateTime(value);
   return isoValue || null;
@@ -101,6 +113,7 @@ function normalizeDashboardBootstrapPayload(payload) {
   return {
     profile: rawProfile ? mapProfileRow(rawProfile) : null,
     profiles: Array.isArray(payload?.profiles) ? payload.profiles.map(mapProfileRow) : [],
+    taskModules: Array.isArray(payload?.taskModules) ? payload.taskModules.map(mapTaskModuleRow) : [],
     sectionTotals: Array.isArray(payload?.sectionTotals) ? payload.sectionTotals : [],
     currentPipelineTotals: Array.isArray(payload?.currentPipelineTotals) ? payload.currentPipelineTotals : [],
     statusCounts: Array.isArray(payload?.statusCounts) ? payload.statusCounts : [],
@@ -175,6 +188,7 @@ function mapTaskRow(taskRow, context) {
   return {
     id: taskRow.id,
     taskCode: taskRow.task_code,
+    moduleKey: taskRow.module_key || "ftth",
     title: taskRow.title,
     type: taskRow.task_type,
     pipeline: taskRow.pipeline,
@@ -299,6 +313,7 @@ function buildTaskCoreRow(task, currentUserId) {
   return {
     id: task.id,
     task_code: task.taskCode || task.id,
+    module_key: task.moduleKey || "ftth",
     title: task.title || "",
     task_type: task.type || "survey",
     pipeline: task.pipeline || "autopsia",
@@ -496,6 +511,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
       session: null,
       profile: null,
       profiles: [],
+      taskModules: [],
       inventory: [],
       workCatalog: [],
       tasks: [],
@@ -515,6 +531,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
         session,
         profile: normalizedDashboard.profile,
         profiles: normalizedDashboard.profiles,
+        taskModules: normalizedDashboard.taskModules,
         inventory: [],
         workCatalog: [],
         tasks: [],
@@ -557,8 +574,16 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
       .eq("id", currentProfile.id);
   }
 
-  const [profilesRows, taskRows] = await Promise.all([
+  const [profilesRows, moduleRows, taskRows] = await Promise.all([
     assertNoError(await profilesQuery, "Fetch profiles"),
+    assertNoError(
+      await client
+        .from("task_modules")
+        .select("id, module_key, name, description, icon_name, sort_order, is_active")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      "Fetch task modules"
+    ),
     assertNoError(await client.from("tasks").select("*").is("archived_at", null).order("updated_at", { ascending: false }), "Fetch tasks")
   ]);
 
@@ -590,6 +615,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
     session,
     profile: currentProfile,
     profiles,
+    taskModules: moduleRows.map(mapTaskModuleRow),
     inventory: [],
     workCatalog: [],
     tasks: taskRows.map((taskRow) => mapTaskRow(taskRow, context)),

@@ -1,0 +1,65 @@
+import { escapeHtml, icon } from "../lib/helpers.js";
+
+export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, currentRole }) {
+  if (!modules.length) {
+    return `
+      <section class="surface empty-screen">
+        <h2>Δεν υπάρχουν διαθέσιμες εργασίες</h2>
+        <p>Ο λογαριασμός δεν έχει ακόμη πρόσβαση σε κάποιο workspace εργασίας.</p>
+      </section>
+    `;
+  }
+
+  const renderedCards = modules
+    .map((module) => {
+      const total = counts.get(module.key);
+      const countLabel = countsReady ? String(total || 0) : "—";
+
+      return `
+        <button
+          class="module-card module-card--${escapeHtml(module.accent || "module-ftth")}${selectedModuleKey === module.key ? " is-active" : ""}"
+          data-route="#/module/${encodeURIComponent(module.key)}"
+          type="button"
+        >
+          <div class="module-card__icon">${icon(module.icon || "tasks")}</div>
+          <div class="module-card__body">
+            <p class="eyebrow">${currentRole === "admin" ? "Admin Access" : "Assigned Access"}</p>
+            <h2>${escapeHtml(module.name)}</h2>
+            <p>${escapeHtml(module.description || "Workspace εργασιών πεδίου.")}</p>
+          </div>
+          <div class="module-card__meta">
+            <strong>${escapeHtml(countLabel)}</strong>
+            <span>${countsReady ? "ορατές εργασίες" : "φόρτωση εργασιών"}</span>
+            <small>Άνοιγμα workspace</small>
+          </div>
+        </button>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="module-hub">
+      <section class="hero surface module-hub__hero">
+        <div>
+          <p class="eyebrow">Workspace Selector</p>
+          <h2>Επίλεξε εργασία / module</h2>
+          <p>Κάθε κάρτα ανοίγει το αντίστοιχο operational περιβάλλον. Ο admin βλέπει όλα τα ενεργά modules, ενώ κάθε χρήστης μόνο όσα του έχουν δοθεί.</p>
+        </div>
+        <div class="hero-stats">
+          <article>
+            <span>Διαθέσιμα modules</span>
+            <strong>${modules.length}</strong>
+          </article>
+          <article>
+            <span>Ρόλος σύνδεσης</span>
+            <strong>${escapeHtml(currentRole === "admin" ? "Admin" : "Partner")}</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="module-grid">
+        ${renderedCards}
+      </section>
+    </section>
+  `;
+}

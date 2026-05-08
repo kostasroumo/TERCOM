@@ -793,6 +793,7 @@ export function TaskDetail({
   selectedWork,
   currentRoleLabel,
   currentUserName,
+  tasksRoute = "#/tasks",
   validationComment,
   cancellationComment
 }) {
@@ -831,7 +832,7 @@ export function TaskDetail({
     <section class="detail-view">
       <div class="detail-header surface">
         <div class="detail-header__top">
-          <button class="link-button" data-route="#/tasks">← Πίσω στη λίστα</button>
+          <button class="link-button" data-route="${escapeHtml(tasksRoute)}">← Πίσω στη λίστα</button>
           <div class="detail-header__pills">
             <span class="pill pill--${escapeHtml(PIPELINE_META[task.pipeline]?.tone || "pipeline-autopsia")}">${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
             <span class="pill pill--${escapeHtml(STATUS_META[task.status].tone)}">${escapeHtml(STATUS_META[task.status].label)}</span>

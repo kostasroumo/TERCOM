@@ -22,8 +22,7 @@ async function callAdminUsersEndpoint(session, options = {}) {
 }
 
 export async function fetchAdminUsers(session) {
-  const payload = await callAdminUsersEndpoint(session, { method: "GET" });
-  return payload.users || [];
+  return callAdminUsersEndpoint(session, { method: "GET" });
 }
 
 export async function createManagedUser(session, userInput) {
