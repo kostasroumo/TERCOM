@@ -983,7 +983,7 @@ function getVisibleModuleTaskCounts() {
 }
 
 function canSwitchBetweenModules() {
-  return getVisibleTaskModules().length > 1 || state.currentRole === "admin";
+  return getVisibleTaskModules().length > 1 || state.currentRole === "admin" || !!runtime.profileContract;
 }
 
 function renderAuthGate() {
@@ -1916,7 +1916,7 @@ function render() {
 
   const route = getRoute();
   const visibleModules = getVisibleTaskModules();
-  if (route.view === "module-hub" && visibleModules.length === 1 && !canManageUsers()) {
+  if (route.view === "module-hub" && visibleModules.length === 1 && !canManageUsers() && !runtime.profileContract) {
     const onlyModuleRoute = buildModuleDashboardRoute(visibleModules[0].key);
     if (window.location.hash !== onlyModuleRoute) {
       window.location.hash = onlyModuleRoute;
@@ -1950,6 +1950,7 @@ function render() {
               : `${selectedModule?.name || "Workspace"} · Dashboard`;
   const canOpenModuleViews = !!selectedModule;
   const useStandaloneShell = route.view === "module-hub" || route.view === "users";
+  const moduleHubButtonLabel = visibleModules.length > 1 || state.currentRole === "admin" ? "Αλλαγή εργασίας" : "Αρχική";
 
   if (useStandaloneShell) {
     app.innerHTML = `
@@ -2109,7 +2110,7 @@ function render() {
 
             ${
               canSwitchBetweenModules()
-                ? `<button class="button button--ghost" data-route="#/dashboard">Αλλαγή εργασίας</button>`
+                ? `<button class="button button--ghost" data-route="#/dashboard">${moduleHubButtonLabel}</button>`
                 : ""
             }
             ${canCreateTasks() && canOpenModuleViews && route.view !== "module-hub" && route.view !== "users" ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
