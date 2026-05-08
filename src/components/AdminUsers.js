@@ -1,4 +1,4 @@
-import { escapeHtml, formatDateTime } from "../lib/helpers.js";
+import { escapeHtml, formatDateTime, formatFileSize } from "../lib/helpers.js";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -89,6 +89,36 @@ function renderUserRow(user, modules, currentUserId, pending, mode = "active") {
         <span>Ορατές εργασίες / modules</span>
         ${renderModuleCheckboxes(modules, user.moduleKeys || [], pending || isCurrentUser && user.role === "admin", user.role)}
         <small class="field-help">Ο admin βλέπει πάντα όλα τα ενεργά modules. Για partner εδώ κλειδώνουμε ποιες κάρτες θα εμφανίζονται στην είσοδο.</small>
+      </div>
+      <div class="field field--wide admin-contract-field">
+        <span>Σύμβαση συνεργασίας</span>
+        ${
+          user.contract
+            ? `
+              <div class="admin-contract-card">
+                <div class="admin-contract-card__copy">
+                  <strong>${escapeHtml(user.contract.fileName || "contract.pdf")}</strong>
+                  <small>${escapeHtml(formatFileSize(user.contract.sizeBytes))} · ανέβηκε ${escapeHtml(formatDateTime(user.contract.uploadedAt))}</small>
+                </div>
+                <div class="admin-contract-card__actions">
+                  ${
+                    user.contract.downloadUrl
+                      ? `
+                        <a class="button button--ghost" href="${escapeHtml(user.contract.downloadUrl)}" target="_blank" rel="noreferrer">Προβολή PDF</a>
+                        <a class="button button--ghost" href="${escapeHtml(user.contract.downloadUrl)}" download="${escapeHtml(user.contract.fileName || "contract.pdf")}">Λήψη</a>
+                      `
+                      : `<span class="field-help">Φόρτωση συνδέσμου...</span>`
+                  }
+                </div>
+              </div>
+            `
+            : `<div class="note note--soft">Δεν έχει ανέβει ακόμη σύμβαση για αυτόν τον χρήστη.</div>`
+        }
+        <label class="field field--compact">
+          <span>${user.contract ? "Αντικατάσταση PDF" : "Upload PDF"}</span>
+          <input type="file" name="contractFile" accept="application/pdf,.pdf" ${pending ? "disabled" : ""} />
+        </label>
+        <small class="field-help">Μόνο PDF. Ο χρήστης και ο admin θα βλέπουν πάντα την τελευταία ενεργή σύμβαση.</small>
       </div>
       <div class="admin-user-row__meta">
         <span class="pill ${isInactive ? "pill--cancelled" : "pill--completed"}">${escapeHtml(statusLabel)}</span>

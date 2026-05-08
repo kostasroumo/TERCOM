@@ -1,6 +1,6 @@
-import { escapeHtml, icon } from "../lib/helpers.js";
+import { escapeHtml, formatDateTime, formatFileSize, icon } from "../lib/helpers.js";
 
-export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, currentRole, manageUsersRoute = "" }) {
+export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, currentRole, manageUsersRoute = "", profileContract = null }) {
   if (!modules.length) {
     return `
       <section class="surface empty-screen">
@@ -69,6 +69,46 @@ export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, cur
               <div class="module-hub__admin-actions">
                 <button class="button" type="button" data-route="${escapeHtml(manageUsersRoute)}">Άνοιγμα διαχείρισης</button>
               </div>
+            </section>
+          `
+          : ""
+      }
+
+      ${
+        currentRole !== "admin" || profileContract
+          ? `
+            <section class="surface module-hub__contract">
+              <div>
+                <p class="eyebrow">Έγγραφα Χρήστη</p>
+                <h3>Σύμβαση συνεργασίας</h3>
+                <p>${
+                  profileContract
+                    ? `Η σύμβαση είναι διαθέσιμη για online προβολή και λήψη σε PDF.`
+                    : `Ο admin δεν έχει ανεβάσει ακόμη τη σύμβασή σου. Όταν προστεθεί, θα εμφανιστεί εδώ σε μορφή PDF.`
+                }</p>
+              </div>
+              ${
+                profileContract
+                  ? `
+                    <div class="module-contract-card">
+                      <div class="module-contract-card__meta">
+                        <strong>${escapeHtml(profileContract.fileName || "Σύμβαση")}</strong>
+                        <span>${escapeHtml(formatFileSize(profileContract.sizeBytes))} · ενημέρωση ${escapeHtml(formatDateTime(profileContract.uploadedAt))}</span>
+                      </div>
+                      <div class="module-contract-card__actions">
+                        ${
+                          profileContract.downloadUrl
+                            ? `
+                              <a class="button" href="${escapeHtml(profileContract.downloadUrl)}" target="_blank" rel="noreferrer">Προβολή PDF</a>
+                              <a class="button button--ghost" href="${escapeHtml(profileContract.downloadUrl)}" download="${escapeHtml(profileContract.fileName || "contract.pdf")}">Λήψη</a>
+                            `
+                            : `<span class="module-contract-card__hint">Φόρτωση συνδέσμου...</span>`
+                        }
+                      </div>
+                    </div>
+                  `
+                  : ""
+              }
             </section>
           `
           : ""

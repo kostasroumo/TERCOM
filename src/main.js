@@ -25,6 +25,8 @@ import { hasSupabaseRuntimeConfig, loadRuntimeConfig } from "./lib/runtimeConfig
 import { createManagedUser, fetchAdminUsers, updateManagedUser } from "./lib/adminUsersApi.js";
 import {
   createSupabaseBrowserClient,
+  fetchActiveProfileContract,
+  fetchActiveProfileContracts,
   fetchSupabaseBootstrapData,
   fetchSupabaseCatalogs,
   fetchSupabaseTaskSummaries,
@@ -32,6 +34,7 @@ import {
   persistTaskToSupabase,
   signInWithPassword,
   signOutSession,
+  uploadProfileContract,
   uploadTaskFiles,
   uploadTaskPhotos
 } from "./lib/supabaseBackend.js";
@@ -48,6 +51,7 @@ const runtime = {
   authPending: false,
   session: null,
   profile: null,
+  profileContract: null,
   profiles: [],
   taskModules: [],
   dashboardSummary: null,
@@ -312,9 +316,10 @@ async function loadSupabaseState(reason = "") {
     state.ui.expandedAdminAssignee !== "unassigned" &&
     !payload.profiles.some((profile) => profile.id === state.ui.expandedAdminAssignee)
   ) {
-    state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
+  state.ui.expandedAdminAssignee = payload.profiles[0]?.id || "unassigned";
   }
   runtime.lastLoadedSessionToken = payload.session?.access_token || "";
+  await hydrateCurrentProfileContract(payload.profile?.id || "");
   saveState();
 
   if (payload.profile && payload.profile.isActive === false) {
@@ -327,6 +332,7 @@ async function loadSupabaseState(reason = "") {
 
 function clearSupabaseLiveState() {
   runtime.profile = null;
+  runtime.profileContract = null;
   runtime.profiles = [];
   runtime.taskModules = [];
   runtime.dashboardSummary = null;
@@ -462,9 +468,29 @@ function normalizeManagedUser(user) {
     companyName: user.companyName || user.company_name || "",
     title: user.title || "",
     isActive: user.isActive !== false && user.is_active !== false,
+    contract: normalizeProfileContract(user.contract || user.activeContract || null),
     moduleKeys: Array.isArray(user.moduleKeys) ? user.moduleKeys : Array.isArray(user.module_keys) ? user.module_keys : [],
     createdAt: user.createdAt || user.created_at || "",
     updatedAt: user.updatedAt || user.updated_at || ""
+  };
+}
+
+function normalizeProfileContract(contract) {
+  if (!contract) {
+    return null;
+  }
+
+  return {
+    id: contract.id || "",
+    profileId: contract.profileId || contract.profile_id || "",
+    fileName: contract.fileName || contract.file_name || "",
+    storagePath: contract.storagePath || contract.storage_path || "",
+    mimeType: contract.mimeType || contract.mime_type || "application/pdf",
+    sizeBytes: Number(contract.sizeBytes ?? contract.size_bytes) || 0,
+    uploadedById: contract.uploadedById || contract.uploaded_by || "",
+    uploadedAt: contract.uploadedAt || contract.uploaded_at || "",
+    isActive: contract.isActive !== false && contract.is_active !== false,
+    downloadUrl: contract.downloadUrl || contract.download_url || ""
   };
 }
 
@@ -523,6 +549,39 @@ function getFallbackModuleKey() {
   return getVisibleTaskModules()[0]?.key || "";
 }
 
+async function hydrateCurrentProfileContract(profileId) {
+  if (!isSupabaseMode() || !isAuthenticated() || !profileId) {
+    runtime.profileContract = null;
+    return;
+  }
+
+  try {
+    runtime.profileContract = await fetchActiveProfileContract(runtime.supabase, profileId);
+  } catch (error) {
+    console.warn("Profile contract bootstrap skipped:", error?.message || error);
+    runtime.profileContract = null;
+  }
+}
+
+async function hydrateManagedUserContracts(users) {
+  const normalizedUsers = (users || []).map(normalizeManagedUser);
+
+  if (!isSupabaseMode() || !isAuthenticated() || !normalizedUsers.length) {
+    return normalizedUsers;
+  }
+
+  try {
+    const contractMap = await fetchActiveProfileContracts(runtime.supabase, normalizedUsers.map((user) => user.id));
+    return normalizedUsers.map((user) => ({
+      ...user,
+      contract: contractMap.get(user.id) || user.contract || null
+    }));
+  } catch (error) {
+    console.warn("Managed user contracts skipped:", error?.message || error);
+    return normalizedUsers;
+  }
+}
+
 function ensureActiveModuleKey(candidateKey = "") {
   const nextKey = getTaskModuleByKey(candidateKey) && getVisibleTaskModules().some((module) => module.key === candidateKey)
     ? candidateKey
@@ -564,7 +623,7 @@ async function ensureAdminUsersLoaded() {
   runtime.adminUsersError = "";
   runtime.activeAdminUsersLoad = (async () => {
     const payload = await fetchAdminUsers(runtime.session);
-    runtime.adminUsers = (payload.users || []).map(normalizeManagedUser);
+    runtime.adminUsers = await hydrateManagedUserContracts(payload.users || []);
     if (payload.modules?.length) {
       runtime.taskModules = payload.modules.map(normalizeTaskModule);
       ensureActiveModuleKey(state.ui.activeModuleKey);
@@ -586,7 +645,12 @@ async function ensureAdminUsersLoaded() {
 }
 
 function upsertManagedUserInRuntime(user) {
-  const normalized = normalizeManagedUser(user);
+  const existingUser = runtime.adminUsers.find((entry) => entry.id === (user?.id || ""));
+  const normalized = normalizeManagedUser({
+    ...existingUser,
+    ...user,
+    contract: user?.contract || existingUser?.contract || null
+  });
   const existingIndex = runtime.adminUsers.findIndex((entry) => entry.id === normalized.id);
 
   if (existingIndex >= 0) {
@@ -665,6 +729,7 @@ async function handleAdminUserUpdate(formData) {
   }
 
   const existingUser = runtime.adminUsers.find((entry) => entry.id === userId);
+  const contractFile = formData.get("contractFile");
 
   runtime.adminUsersPending = true;
   runtime.adminUsersError = "";
@@ -684,14 +749,41 @@ async function handleAdminUserUpdate(formData) {
         : String(formData.get("isActive") || "true") === "true"
     });
 
-    upsertManagedUserInRuntime(user);
-    upsertManagedProfileInRuntime(user);
+    let nextContract = existingUser?.contract || null;
+    let contractUploadError = "";
+    if (contractFile instanceof File && contractFile.size) {
+      try {
+        nextContract = await uploadProfileContract(runtime.supabase, userId, contractFile, getCurrentUser());
+      } catch (error) {
+        contractUploadError = error.message;
+      }
+    }
+
+    const enrichedUser = {
+      ...user,
+      contract: nextContract
+    };
+
+    upsertManagedUserInRuntime(enrichedUser);
+    upsertManagedProfileInRuntime(enrichedUser);
+    if (runtime.profile?.id === userId) {
+      runtime.profileContract = normalizeProfileContract(nextContract);
+    }
     runtime.adminUsersLoaded = true;
-    runtime.adminUsersMessage = user.isActive === false
-      ? "Ο χρήστης απενεργοποιήθηκε και δεν εμφανίζεται πλέον σε νέες αναθέσεις."
-      : existingUser?.isActive === false
-        ? "Ο χρήστης επανενεργοποιήθηκε και μπορεί ξανά να συνδεθεί στο app."
-        : "Τα στοιχεία του χρήστη ενημερώθηκαν.";
+    runtime.adminUsersMessage = contractUploadError
+      ? ""
+      : enrichedUser.isActive === false
+        ? "Ο χρήστης απενεργοποιήθηκε και δεν εμφανίζεται πλέον σε νέες αναθέσεις."
+        : contractFile instanceof File && contractFile.size
+          ? existingUser?.isActive === false
+            ? "Ο χρήστης επανενεργοποιήθηκε και η σύμβαση αντικαταστάθηκε."
+            : "Τα στοιχεία του χρήστη ενημερώθηκαν και η σύμβαση αποθηκεύτηκε."
+          : existingUser?.isActive === false
+            ? "Ο χρήστης επανενεργοποιήθηκε και μπορεί ξανά να συνδεθεί στο app."
+            : "Τα στοιχεία του χρήστη ενημερώθηκαν.";
+    runtime.adminUsersError = contractUploadError
+      ? `Τα στοιχεία του χρήστη αποθηκεύτηκαν, αλλά η σύμβαση δεν ανέβηκε: ${contractUploadError}`
+      : "";
   } catch (error) {
     runtime.adminUsersError = error.message;
   } finally {
@@ -2067,7 +2159,8 @@ function renderView(route, visibleTasks, filteredTasks, currentUser, selectedMod
       countsReady: !isSupabaseMode() || runtime.tasksLoaded,
       selectedModuleKey: state.ui.activeModuleKey,
       currentRole: state.currentRole,
-      manageUsersRoute: canManageUsers() ? "#/users" : ""
+      manageUsersRoute: canManageUsers() ? "#/users" : "",
+      profileContract: runtime.profileContract
     });
   }
 

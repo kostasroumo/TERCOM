@@ -102,6 +102,21 @@ function mapTaskModuleRow(row) {
   };
 }
 
+function mapProfileContractRow(row, downloadUrl = "") {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    fileName: row.file_name || "",
+    storagePath: row.storage_path || "",
+    mimeType: row.mime_type || "application/pdf",
+    sizeBytes: Number(row.size_bytes) || 0,
+    uploadedById: row.uploaded_by || "",
+    uploadedAt: row.uploaded_at || "",
+    isActive: row.is_active !== false,
+    downloadUrl
+  };
+}
+
 function toNullableIsoDateTime(value) {
   const isoValue = toIsoDateTime(value);
   return isoValue || null;
@@ -738,6 +753,120 @@ export async function signOutSession(client) {
   if (response.error) {
     throw new Error(response.error.message);
   }
+}
+
+export async function fetchActiveProfileContract(client, profileId) {
+  if (!profileId) {
+    return null;
+  }
+
+  const rows = assertNoError(
+    await client
+      .from("profile_contracts")
+      .select("*")
+      .eq("profile_id", profileId)
+      .eq("is_active", true)
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
+    "Fetch profile contract"
+  );
+
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row?.storage_path) {
+    return null;
+  }
+
+  const signedUrlRow = assertNoError(
+    await client.storage.from("profile-contracts").createSignedUrl(row.storage_path, 60 * 60 * 24 * 7),
+    `Create signed url for ${row.file_name || "profile contract"}`
+  );
+
+  return mapProfileContractRow(row, signedUrlRow.signedUrl || "");
+}
+
+export async function fetchActiveProfileContracts(client, profileIds = []) {
+  const uniqueProfileIds = [...new Set((profileIds || []).filter(Boolean))];
+  if (!uniqueProfileIds.length) {
+    return new Map();
+  }
+
+  const rows = assertNoError(
+    await client
+      .from("profile_contracts")
+      .select("*")
+      .in("profile_id", uniqueProfileIds)
+      .eq("is_active", true)
+      .order("uploaded_at", { ascending: false }),
+    "Fetch profile contracts"
+  );
+
+  const signedUrlMap = await createSignedUrlMap(client, "profile-contracts", rows);
+
+  return (rows || []).reduce((map, row) => {
+    if (!row?.profile_id || map.has(row.profile_id)) {
+      return map;
+    }
+
+    map.set(row.profile_id, mapProfileContractRow(row, signedUrlMap.get(row.storage_path) || ""));
+    return map;
+  }, new Map());
+}
+
+export async function uploadProfileContract(client, profileId, file, currentUser) {
+  if (!profileId) {
+    throw new Error("Δεν βρέθηκε ο χρήστης για το ανέβασμα της σύμβασης.");
+  }
+
+  if (!(file instanceof File) || !file.size) {
+    return null;
+  }
+
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  if (!isPdf) {
+    throw new Error("Η σύμβαση πρέπει να είναι αρχείο PDF.");
+  }
+
+  const now = new Date().toISOString();
+  const assetId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const storagePath = buildStoragePath(profileId, assetId, file.name);
+
+  assertNoError(
+    await client.storage.from("profile-contracts").upload(storagePath, file, {
+      upsert: false,
+      contentType: "application/pdf"
+    }),
+    `Upload contract ${file.name}`
+  );
+
+  assertNoError(
+    await client.from("profile_contracts").update({ is_active: false }).eq("profile_id", profileId).eq("is_active", true),
+    "Archive previous profile contract"
+  );
+
+  const insertedRow = assertNoError(
+    await client
+      .from("profile_contracts")
+      .insert({
+        profile_id: profileId,
+        file_name: file.name,
+        storage_path: storagePath,
+        mime_type: "application/pdf",
+        size_bytes: file.size || 0,
+        uploaded_by: currentUser?.id || null,
+        uploaded_at: now,
+        is_active: true
+      })
+      .select("*")
+      .single(),
+    "Persist profile contract"
+  );
+
+  const signedUrlRow = assertNoError(
+    await client.storage.from("profile-contracts").createSignedUrl(storagePath, 60 * 60 * 24 * 7),
+    `Create signed url for ${file.name}`
+  );
+
+  return mapProfileContractRow(insertedRow, signedUrlRow.signedUrl || "");
 }
 
 export async function uploadTaskPhotos(client, taskId, files, category, currentUser) {
