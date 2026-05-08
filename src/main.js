@@ -1878,15 +1878,23 @@ function renderAdminDashboardFromSummary(summary) {
 function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
   const hasRouteFilter = !!filterStatus;
   const moduleKey = getSelectedModuleKey();
+  const queueVisual = filterStatus === "cancelled"
+    ? { tone: "cancelled", iconName: "files" }
+    : title.includes("Ακύρωσης")
+      ? { tone: "requests", iconName: "pending_validation" }
+      : { tone: "archived", iconName: "history" };
+
   return `
-    <section class="surface">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Admin Queue</p>
-          <h2>${escapeHtml(title)}</h2>
+    <section class="surface queue-panel queue-panel--${escapeHtml(queueVisual.tone)}">
+      <div class="queue-panel__head">
+        <div class="queue-panel__title">
+          <span class="queue-panel__icon">${icon(queueVisual.iconName)}</span>
+          <div>
+            <p class="eyebrow">Admin Queue</p>
+            <h2>${escapeHtml(title)}</h2>
+          </div>
         </div>
-        <div>
-          <p class="section-copy">${escapeHtml(copy)}</p>
+        <div class="queue-panel__meta">
           ${
             hasRouteFilter
               ? `<button class="button button--ghost queue-head-action" data-route="${escapeHtml(buildModuleTasksRoute(moduleKey))}" data-filter-status="${escapeHtml(filterStatus)}">${tasks.length} συνολικά</button>`
@@ -1895,25 +1903,28 @@ function renderAdminQueue(title, copy, tasks, emptyMessage, filterStatus) {
         </div>
       </div>
 
-      ${
-        tasks.length
-          ? `
-            <div class="queue-list">
-              ${tasks
-                .map(
-                  (task) => `
-                    <button class="queue-item" data-open-task="${escapeHtml(task.id)}">
-                      <strong>${escapeHtml(task.title)}</strong>
-                      <span>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
-                      <span>${escapeHtml(task.assignedUserName || "Χωρίς ανάθεση")} · ${escapeHtml(task.archivedAt ? "Αρχειοθετημένη" : STATUS_META[task.status]?.label || task.status)}</span>
-                    </button>
-                  `
-                )
-                .join("")}
-            </div>
-          `
-          : `<div class="empty-state"><p>${escapeHtml(emptyMessage)}</p></div>`
-      }
+      <div class="queue-panel__body">
+        <p class="queue-panel__copy">${escapeHtml(copy)}</p>
+        ${
+          tasks.length
+            ? `
+              <div class="queue-list queue-list--panel">
+                ${tasks
+                  .map(
+                    (task) => `
+                      <button class="queue-item" data-open-task="${escapeHtml(task.id)}">
+                        <strong>${escapeHtml(task.title)}</strong>
+                        <span>${escapeHtml(task.address)} · ${escapeHtml(task.city)} · ${escapeHtml(PIPELINE_META[task.pipeline]?.label || "Αυτοψία")}</span>
+                        <span>${escapeHtml(task.assignedUserName || "Χωρίς ανάθεση")} · ${escapeHtml(task.archivedAt ? "Αρχειοθετημένη" : STATUS_META[task.status]?.label || task.status)}</span>
+                      </button>
+                    `
+                  )
+                  .join("")}
+              </div>
+            `
+            : `<div class="empty-state empty-state--queue"><p>${escapeHtml(emptyMessage)}</p></div>`
+        }
+      </div>
     </section>
   `;
 }

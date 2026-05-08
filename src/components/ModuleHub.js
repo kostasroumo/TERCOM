@@ -40,7 +40,7 @@ export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, cur
   return `
     <section class="module-hub">
       <section class="hero surface module-hub__hero">
-        <div>
+        <div class="module-hub__hero-copy">
           <p class="eyebrow">Workspace Selector</p>
           <h2>Επίλεξε εργασία / module</h2>
           <p>Κάθε κάρτα ανοίγει το αντίστοιχο operational περιβάλλον. Ο admin βλέπει όλα τα ενεργά modules, ενώ κάθε χρήστης μόνο όσα του έχουν δοθεί.</p>
@@ -60,7 +60,7 @@ export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, cur
       ${
         manageUsersRoute
           ? `
-            <section class="surface module-hub__admin">
+            <section class="surface module-hub__admin module-hub__strip">
               <div>
                 <p class="eyebrow">Admin Tools</p>
                 <h3>Διαχείριση χρηστών</h3>
@@ -77,7 +77,7 @@ export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, cur
       ${
         currentRole !== "admin" || profileContract
           ? `
-            <section class="surface module-hub__contract">
+            <section class="surface module-hub__contract module-hub__strip">
               <div>
                 <p class="eyebrow">Έγγραφα Χρήστη</p>
                 <h3>Σύμβαση συνεργασίας</h3>
