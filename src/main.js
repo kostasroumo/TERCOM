@@ -2024,7 +2024,7 @@ function render() {
 
             ${
               canSwitchBetweenModules()
-                ? `<button class="button button--ghost" data-route="#/dashboard">Επιλογή εργασίας</button>`
+                ? `<button class="button button--ghost" data-route="#/dashboard">Αλλαγή εργασίας</button>`
                 : ""
             }
             ${canCreateTasks() && canOpenModuleViews && route.view !== "module-hub" && route.view !== "users" ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
