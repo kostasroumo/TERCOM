@@ -109,6 +109,7 @@ function renderUserRow(user, modules, currentUserId, pending, mode = "active") {
                       `
                       : `<span class="field-help">Φόρτωση συνδέσμου...</span>`
                   }
+                  <button class="button button--danger" type="submit" name="contractAction" value="delete" ${pending ? "disabled" : ""}>Αφαίρεση σύμβασης</button>
                 </div>
               </div>
             `

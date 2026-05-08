@@ -869,6 +869,24 @@ export async function uploadProfileContract(client, profileId, file, currentUser
   return mapProfileContractRow(insertedRow, signedUrlRow.signedUrl || "");
 }
 
+export async function deleteProfileContract(client, contract) {
+  if (!contract?.id) {
+    return;
+  }
+
+  assertNoError(
+    await client.from("profile_contracts").update({ is_active: false }).eq("id", contract.id),
+    "Deactivate profile contract"
+  );
+
+  if (contract.storagePath) {
+    const response = await client.storage.from("profile-contracts").remove([contract.storagePath]);
+    if (response.error) {
+      console.warn("Profile contract storage cleanup skipped:", response.error.message);
+    }
+  }
+}
+
 export async function uploadTaskPhotos(client, taskId, files, category, currentUser) {
   const now = new Date().toISOString();
 

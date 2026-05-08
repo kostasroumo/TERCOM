@@ -25,6 +25,7 @@ import { hasSupabaseRuntimeConfig, loadRuntimeConfig } from "./lib/runtimeConfig
 import { createManagedUser, fetchAdminUsers, updateManagedUser } from "./lib/adminUsersApi.js";
 import {
   createSupabaseBrowserClient,
+  deleteProfileContract,
   fetchActiveProfileContract,
   fetchActiveProfileContracts,
   fetchSupabaseBootstrapData,
@@ -730,6 +731,7 @@ async function handleAdminUserUpdate(formData) {
 
   const existingUser = runtime.adminUsers.find((entry) => entry.id === userId);
   const contractFile = formData.get("contractFile");
+  const contractAction = String(formData.get("contractAction") || "");
 
   runtime.adminUsersPending = true;
   runtime.adminUsersError = "";
@@ -751,7 +753,12 @@ async function handleAdminUserUpdate(formData) {
 
     let nextContract = existingUser?.contract || null;
     let contractUploadError = "";
-    if (contractFile instanceof File && contractFile.size) {
+    if (contractAction === "delete") {
+      if (existingUser?.contract) {
+        await deleteProfileContract(runtime.supabase, existingUser.contract);
+      }
+      nextContract = null;
+    } else if (contractFile instanceof File && contractFile.size) {
       try {
         nextContract = await uploadProfileContract(runtime.supabase, userId, contractFile, getCurrentUser());
       } catch (error) {
@@ -774,6 +781,8 @@ async function handleAdminUserUpdate(formData) {
       ? ""
       : enrichedUser.isActive === false
         ? "Ο χρήστης απενεργοποιήθηκε και δεν εμφανίζεται πλέον σε νέες αναθέσεις."
+        : contractAction === "delete"
+          ? "Η σύμβαση αφαιρέθηκε από το app για αυτόν τον χρήστη."
         : contractFile instanceof File && contractFile.size
           ? existingUser?.isActive === false
             ? "Ο χρήστης επανενεργοποιήθηκε και η σύμβαση αντικαταστάθηκε."
@@ -2889,10 +2898,15 @@ function handleSubmit(event) {
   const adminUserForm = event.target.closest("[data-admin-user-form]");
   if (adminUserForm) {
     event.preventDefault();
-    if (!confirmAction("Είστε σίγουροι ότι θέλετε να αποθηκεύσετε τις αλλαγές του χρήστη;")) {
+    const formData = new FormData(adminUserForm);
+    if (event.submitter?.name) {
+      formData.set(event.submitter.name, event.submitter.value || "");
+    }
+    const isContractDelete = String(formData.get("contractAction") || "") === "delete";
+    if (!confirmAction(isContractDelete ? "Είστε σίγουροι ότι θέλετε να αφαιρέσετε τη σύμβαση αυτού του χρήστη;" : "Είστε σίγουροι ότι θέλετε να αποθηκεύσετε τις αλλαγές του χρήστη;")) {
       return;
     }
-    handleAdminUserUpdate(new FormData(adminUserForm));
+    handleAdminUserUpdate(formData);
     return;
   }
 
