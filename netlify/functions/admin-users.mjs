@@ -471,6 +471,9 @@ async function handleUpdateUser(callerProfile, body) {
   const modules = await listTaskModules();
   const nextRole = sanitizeRole(body.role || existingProfile.role || "partner");
   const nextIsActive = body.isActive === undefined ? existingProfile.isActive !== false : sanitizeBoolean(body.isActive);
+  const nextDisplayName = sanitizeText(body.displayName, 160) || existingProfile.displayName || existingProfile.email;
+  const nextCompanyName = sanitizeText(body.companyName, 160) || sanitizeText(body.displayName, 160) || existingProfile.companyName;
+  const nextTitle = sanitizeText(body.title, 160) || existingProfile.title || defaultTitleForRole(nextRole);
 
   if (callerProfile.id === profileId && nextRole !== "admin") {
     throw new Error("Ο τρέχων admin δεν μπορεί να αλλάξει τον δικό του ρόλο από εδώ.");
@@ -480,14 +483,21 @@ async function handleUpdateUser(callerProfile, body) {
     throw new Error("Ο τρέχων admin δεν μπορεί να απενεργοποιήσει τον δικό του λογαριασμό.");
   }
 
-  const updatedProfile = await updateProfile(profileId, {
-    display_name: sanitizeText(body.displayName, 160) || existingProfile.displayName || existingProfile.email,
-    company_name: sanitizeText(body.companyName, 160) || sanitizeText(body.displayName, 160) || existingProfile.companyName,
-    title: sanitizeText(body.title, 160) || existingProfile.title || defaultTitleForRole(nextRole),
+  await updateProfile(profileId, {
+    display_name: nextDisplayName,
+    company_name: nextCompanyName,
+    title: nextTitle,
     role: nextRole,
     is_active: nextIsActive
   });
   await syncAuthUserAccess(profileId, nextIsActive);
+  const updatedProfile = await updateProfile(profileId, {
+    display_name: nextDisplayName,
+    company_name: nextCompanyName,
+    title: nextTitle,
+    role: nextRole,
+    is_active: nextIsActive
+  });
 
   const moduleKeys = sanitizeModuleKeys(body.moduleKeys, modules);
   await replaceProfileTaskModules(profileId, moduleKeys, callerProfile.id);

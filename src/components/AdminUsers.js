@@ -33,64 +33,81 @@ function renderModuleCheckboxes(modules, selectedKeys = [], pending = false, rol
   `;
 }
 
-export function AdminUsers({ users, modules, currentUserId, pending, error, message }) {
-  const rows = (users || [])
-    .map((user) => {
-      const isCurrentUser = user.id === currentUserId;
-      const statusLabel = user.isActive === false ? "Ανενεργός" : "Ενεργός";
+function renderUserRow(user, modules, currentUserId, pending, mode = "active") {
+  const isCurrentUser = user.id === currentUserId;
+  const isInactive = user.isActive === false;
+  const statusLabel = isInactive ? "Ανενεργός" : "Ενεργός";
+  const actionLabel = mode === "inactive" ? "Επανενεργοποίηση" : "Αποθήκευση";
 
-      return `
-        <form class="admin-user-row" data-admin-user-form>
-          <input type="hidden" name="id" value="${escapeHtml(user.id)}" />
-          <div class="admin-user-row__identity">
-            <strong>${escapeHtml(user.displayName || user.email)}</strong>
-            <span>${escapeHtml(user.email)}</span>
-          </div>
-          <label class="field field--compact">
-            <span>Όνομα</span>
-            <input name="displayName" value="${escapeHtml(user.displayName || "")}" ${pending ? "disabled" : ""} />
-          </label>
-          <label class="field field--compact">
-            <span>Εταιρεία</span>
-            <input name="companyName" value="${escapeHtml(user.companyName || "")}" ${pending ? "disabled" : ""} />
-          </label>
-          <label class="field field--compact">
-            <span>Τίτλος</span>
-            <input name="title" value="${escapeHtml(user.title || "")}" ${pending ? "disabled" : ""} />
-          </label>
-          <label class="field field--compact">
-            <span>Ρόλος</span>
-            <select name="role" ${pending || isCurrentUser ? "disabled" : ""}>
-              ${ROLE_OPTIONS.map(
-                (option) => `<option value="${option.value}"${user.role === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`
-              ).join("")}
-            </select>
-          </label>
-          <label class="field field--compact">
-            <span>Κατάσταση</span>
-            <select name="isActive" ${pending || isCurrentUser ? "disabled" : ""}>
-              <option value="true"${user.isActive !== false ? " selected" : ""}>Ενεργός</option>
-              <option value="false"${user.isActive === false ? " selected" : ""}>Ανενεργός</option>
-            </select>
-          </label>
-          <div class="field field--wide">
-            <span>Ορατές εργασίες / modules</span>
-            ${renderModuleCheckboxes(modules, user.moduleKeys || [], pending || isCurrentUser && user.role === "admin", user.role)}
-            <small class="field-help">Ο admin βλέπει πάντα όλα τα ενεργά modules. Για partner εδώ κλειδώνουμε ποιες κάρτες θα εμφανίζονται στην είσοδο.</small>
-          </div>
-          <div class="admin-user-row__meta">
-            <span class="pill ${user.isActive === false ? "pill--cancelled" : "pill--completed"}">${escapeHtml(statusLabel)}</span>
-            <span>Δημιουργήθηκε: ${escapeHtml(formatDateTime(user.createdAt))}</span>
-            <span>Τελευταία ενημέρωση: ${escapeHtml(formatDateTime(user.updatedAt))}</span>
-            ${isCurrentUser ? `<span>Τρέχων λογαριασμός admin</span>` : ""}
-          </div>
-          <div class="admin-user-row__actions">
-            <button class="button button--secondary" type="submit" ${pending ? "disabled" : ""}>Αποθήκευση</button>
-          </div>
-        </form>
-      `;
-    })
-    .join("");
+  return `
+    <form class="admin-user-row${mode === "inactive" ? " admin-user-row--inactive" : ""}" data-admin-user-form>
+      <input type="hidden" name="id" value="${escapeHtml(user.id)}" />
+      ${mode === "inactive" ? `<input type="hidden" name="isActive" value="true" />` : ""}
+      <div class="admin-user-row__identity">
+        <strong>${escapeHtml(user.displayName || user.email)}</strong>
+        <span>${escapeHtml(user.email)}</span>
+      </div>
+      <label class="field field--compact">
+        <span>Όνομα</span>
+        <input name="displayName" value="${escapeHtml(user.displayName || "")}" ${pending ? "disabled" : ""} />
+      </label>
+      <label class="field field--compact">
+        <span>Εταιρεία</span>
+        <input name="companyName" value="${escapeHtml(user.companyName || "")}" ${pending ? "disabled" : ""} />
+      </label>
+      <label class="field field--compact">
+        <span>Τίτλος</span>
+        <input name="title" value="${escapeHtml(user.title || "")}" ${pending ? "disabled" : ""} />
+      </label>
+      <label class="field field--compact">
+        <span>Ρόλος</span>
+        <select name="role" ${pending || isCurrentUser ? "disabled" : ""}>
+          ${ROLE_OPTIONS.map(
+            (option) => `<option value="${option.value}"${user.role === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+          ).join("")}
+        </select>
+      </label>
+      ${
+        mode === "active"
+          ? `
+            <label class="field field--compact">
+              <span>Κατάσταση</span>
+              <select name="isActive" ${pending || isCurrentUser ? "disabled" : ""}>
+                <option value="true"${user.isActive !== false ? " selected" : ""}>Ενεργός</option>
+                <option value="false"${user.isActive === false ? " selected" : ""}>Ανενεργός</option>
+              </select>
+            </label>
+          `
+          : `
+            <div class="admin-user-row__status-note">
+              <span class="pill pill--cancelled">${escapeHtml(statusLabel)}</span>
+              <p>Ο λογαριασμός έχει αποκλειστεί από login και μένει διαθέσιμος μόνο για ιστορικό, audit και επανενεργοποίηση.</p>
+            </div>
+          `
+      }
+      <div class="field field--wide">
+        <span>Ορατές εργασίες / modules</span>
+        ${renderModuleCheckboxes(modules, user.moduleKeys || [], pending || isCurrentUser && user.role === "admin", user.role)}
+        <small class="field-help">Ο admin βλέπει πάντα όλα τα ενεργά modules. Για partner εδώ κλειδώνουμε ποιες κάρτες θα εμφανίζονται στην είσοδο.</small>
+      </div>
+      <div class="admin-user-row__meta">
+        <span class="pill ${isInactive ? "pill--cancelled" : "pill--completed"}">${escapeHtml(statusLabel)}</span>
+        <span>Δημιουργήθηκε: ${escapeHtml(formatDateTime(user.createdAt))}</span>
+        <span>Τελευταία ενημέρωση: ${escapeHtml(formatDateTime(user.updatedAt))}</span>
+        ${isCurrentUser ? `<span>Τρέχων λογαριασμός admin</span>` : ""}
+      </div>
+      <div class="admin-user-row__actions">
+        <button class="button ${mode === "inactive" ? "" : "button--secondary"}" type="submit" ${pending ? "disabled" : ""}>${actionLabel}</button>
+      </div>
+    </form>
+  `;
+}
+
+export function AdminUsers({ users, modules, currentUserId, pending, error, message }) {
+  const activeUsers = (users || []).filter((user) => user.isActive !== false);
+  const inactiveUsers = (users || []).filter((user) => user.isActive === false);
+  const activeRows = activeUsers.map((user) => renderUserRow(user, modules, currentUserId, pending, "active")).join("");
+  const inactiveRows = inactiveUsers.map((user) => renderUserRow(user, modules, currentUserId, pending, "inactive")).join("");
 
   return `
     <section class="admin-users-page">
@@ -156,14 +173,30 @@ export function AdminUsers({ users, modules, currentUserId, pending, error, mess
         <div class="section-head">
           <div>
             <p class="eyebrow">Directory</p>
-            <h2>Ενεργοί και ανενεργοί χρήστες</h2>
+            <h2>Ενεργοί χρήστες</h2>
           </div>
-          <p class="section-copy">${users.length} συνολικοί λογαριασμοί</p>
+          <p class="section-copy">${activeUsers.length} ενεργοί · ${inactiveUsers.length} ανενεργοί</p>
         </div>
 
         <div class="admin-user-list">
-          ${rows || `<div class="empty-state"><p>Δεν βρέθηκαν χρήστες.</p></div>`}
+          ${activeRows || `<div class="empty-state"><p>Δεν βρέθηκαν ενεργοί χρήστες.</p></div>`}
         </div>
+      </section>
+
+      <section class="surface">
+        <details class="inactive-users-panel">
+          <summary>
+            <div>
+              <p class="eyebrow">Inactive Directory</p>
+              <h2>Ανενεργοποιημένοι χρήστες</h2>
+            </div>
+            <span class="inactive-users-panel__count">${inactiveUsers.length}</span>
+          </summary>
+          <p class="inactive-users-panel__copy">Οι λογαριασμοί αυτοί δεν μπορούν να συνδεθούν, αλλά κρατιούνται για ιστορικό, αναθέσεις και εύκολη επανενεργοποίηση όταν χρειαστεί.</p>
+          <div class="admin-user-list">
+            ${inactiveRows || `<div class="empty-state"><p>Δεν υπάρχουν ανενεργοί χρήστες.</p></div>`}
+          </div>
+        </details>
       </section>
     </section>
   `;

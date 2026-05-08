@@ -461,7 +461,7 @@ function normalizeManagedUser(user) {
     displayName: user.displayName || user.display_name || "",
     companyName: user.companyName || user.company_name || "",
     title: user.title || "",
-    isActive: user.isActive !== false,
+    isActive: user.isActive !== false && user.is_active !== false,
     moduleKeys: Array.isArray(user.moduleKeys) ? user.moduleKeys : Array.isArray(user.module_keys) ? user.module_keys : [],
     createdAt: user.createdAt || user.created_at || "",
     updatedAt: user.updatedAt || user.updated_at || ""
@@ -607,7 +607,7 @@ function upsertManagedProfileInRuntime(user) {
     companyName: user.companyName || user.company_name || "",
     title: user.title || "",
     phone: user.phone || "",
-    isActive: user.isActive !== false
+    isActive: user.isActive !== false && user.is_active !== false
   };
 
   const existingIndex = runtime.profiles.findIndex((entry) => entry.id === normalizedProfile.id);
@@ -689,7 +689,9 @@ async function handleAdminUserUpdate(formData) {
     runtime.adminUsersLoaded = true;
     runtime.adminUsersMessage = user.isActive === false
       ? "Ο χρήστης απενεργοποιήθηκε και δεν εμφανίζεται πλέον σε νέες αναθέσεις."
-      : "Τα στοιχεία του χρήστη ενημερώθηκαν.";
+      : existingUser?.isActive === false
+        ? "Ο χρήστης επανενεργοποιήθηκε και μπορεί ξανά να συνδεθεί στο app."
+        : "Τα στοιχεία του χρήστη ενημερώθηκαν.";
   } catch (error) {
     runtime.adminUsersError = error.message;
   } finally {
