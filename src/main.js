@@ -1822,7 +1822,7 @@ function render() {
 
   const route = getRoute();
   const visibleModules = getVisibleTaskModules();
-  if (route.view === "module-hub" && visibleModules.length === 1) {
+  if (route.view === "module-hub" && visibleModules.length === 1 && !canManageUsers()) {
     const onlyModuleRoute = buildModuleDashboardRoute(visibleModules[0].key);
     if (window.location.hash !== onlyModuleRoute) {
       window.location.hash = onlyModuleRoute;
@@ -1855,14 +1855,15 @@ function render() {
               ? `${selectedModule?.name || "Workspace"} · Καρτέλα εργασίας`
               : `${selectedModule?.name || "Workspace"} · Dashboard`;
   const canOpenModuleViews = !!selectedModule;
+  const useStandaloneShell = route.view === "module-hub" || route.view === "users";
 
-  if (route.view === "module-hub") {
+  if (useStandaloneShell) {
     app.innerHTML = `
       <section class="module-shell">
         <header class="topbar surface module-shell__topbar">
           <div>
-            <p class="eyebrow">Workspace Selector</p>
-            <h1>Επιλογή εργασίας</h1>
+            <p class="eyebrow">${route.view === "users" ? "Admin Access" : "Workspace Selector"}</p>
+            <h1>${escapeHtml(topbarTitle)}</h1>
           </div>
 
           <div class="topbar__controls">
@@ -1899,8 +1900,8 @@ function render() {
             }
 
             ${
-              canManageUsers()
-                ? `<button class="button button--ghost" data-route="#/users">Χρήστες</button>`
+              route.view === "users"
+                ? `<button class="button button--ghost" data-route="#/dashboard">Πίσω στις εργασίες</button>`
                 : ""
             }
             ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
@@ -1957,16 +1958,6 @@ function render() {
                   <span class="nav-link__label">Tasks</span>
                 </button>
                 `
-              : ""
-          }
-          ${
-            canManageUsers()
-              ? `
-                <button class="nav-link${route.view === "users" ? " is-active" : ""}" data-route="#/users">
-                  <span class="nav-link__icon">${icon("assigned")}</span>
-                  <span class="nav-link__label">Χρήστες</span>
-                </button>
-              `
               : ""
           }
           ${
@@ -2073,7 +2064,8 @@ function renderView(route, visibleTasks, filteredTasks, currentUser, selectedMod
       counts: getVisibleModuleTaskCounts(),
       countsReady: !isSupabaseMode() || runtime.tasksLoaded,
       selectedModuleKey: state.ui.activeModuleKey,
-      currentRole: state.currentRole
+      currentRole: state.currentRole,
+      manageUsersRoute: canManageUsers() ? "#/users" : ""
     });
   }
 

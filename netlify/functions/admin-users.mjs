@@ -4,6 +4,7 @@ const JSON_HEADERS = {
 };
 
 const ALLOWED_ROLES = new Set(["admin", "partner"]);
+const USER_BAN_DURATION = "876000h";
 
 function json(statusCode, body) {
   return {
@@ -404,6 +405,38 @@ async function createAuthUser(userInput) {
   });
 }
 
+async function syncAuthUserAccess(profileId, isActive) {
+  const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+  const requestOptions = {
+    method: "PUT",
+    headers: serviceHeaders({
+      "content-type": "application/json; charset=utf-8"
+    }),
+    body: JSON.stringify({
+      ban_duration: isActive ? "none" : USER_BAN_DURATION
+    })
+  };
+  const endpoints = [`${supabaseUrl}/auth/v1/admin/users/${profileId}`, `${supabaseUrl}/auth/v1/admin/user/${profileId}`];
+  let lastPayload = {};
+  let lastResponse = null;
+
+  for (const endpoint of endpoints) {
+    const { response, payload } = await callJson(endpoint, requestOptions);
+    if (response.ok) {
+      return;
+    }
+
+    lastPayload = payload;
+    lastResponse = response;
+
+    if (response.status !== 404 && response.status !== 405) {
+      break;
+    }
+  }
+
+  throw new Error(lastPayload?.msg || lastPayload?.message || lastPayload?.error || `Το auth access του χρήστη δεν ενημερώθηκε (${lastResponse?.status || "unknown"}).`);
+}
+
 async function handleCreateUser(body) {
   const modules = await listTaskModules();
   const createdUser = await createAuthUser(body || {});
@@ -454,6 +487,7 @@ async function handleUpdateUser(callerProfile, body) {
     role: nextRole,
     is_active: nextIsActive
   });
+  await syncAuthUserAccess(profileId, nextIsActive);
 
   const moduleKeys = sanitizeModuleKeys(body.moduleKeys, modules);
   await replaceProfileTaskModules(profileId, moduleKeys, callerProfile.id);

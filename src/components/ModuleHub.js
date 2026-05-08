@@ -1,6 +1,6 @@
 import { escapeHtml, icon } from "../lib/helpers.js";
 
-export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, currentRole }) {
+export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, currentRole, manageUsersRoute = "" }) {
   if (!modules.length) {
     return `
       <section class="surface empty-screen">
@@ -56,6 +56,23 @@ export function ModuleHub({ modules, counts, countsReady, selectedModuleKey, cur
           </article>
         </div>
       </section>
+
+      ${
+        manageUsersRoute
+          ? `
+            <section class="surface module-hub__admin">
+              <div>
+                <p class="eyebrow">Admin Tools</p>
+                <h3>Διαχείριση χρηστών</h3>
+                <p>Δημιούργησε συνεργάτες, άλλαξε ρόλους και κλείδωσε ποια modules θα βλέπει ο κάθε λογαριασμός πριν μπει στο operational περιβάλλον.</p>
+              </div>
+              <div class="module-hub__admin-actions">
+                <button class="button" type="button" data-route="${escapeHtml(manageUsersRoute)}">Άνοιγμα διαχείρισης</button>
+              </div>
+            </section>
+          `
+          : ""
+      }
 
       <section class="module-grid">
         ${renderedCards}

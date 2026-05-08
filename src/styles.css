@@ -382,6 +382,31 @@ svg {
   align-items: stretch;
 }
 
+.module-hub__admin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.module-hub__admin h3 {
+  margin: 8px 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+}
+
+.module-hub__admin p:last-child {
+  margin-bottom: 0;
+  color: var(--text-soft);
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.module-hub__admin-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .module-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1507,6 +1532,14 @@ svg {
 @media (max-width: 1180px) {
   .module-grid {
     grid-template-columns: 1fr;
+  }
+
+  .module-hub__admin {
+    grid-template-columns: 1fr;
+  }
+
+  .module-hub__admin-actions {
+    justify-content: flex-start;
   }
 
   .admin-user-row {
