@@ -1,5 +1,7 @@
 begin;
 
+create schema if not exists private;
+
 create table if not exists public.task_modules (
   id uuid primary key default gen_random_uuid(),
   module_key text not null unique,
@@ -92,6 +94,37 @@ where not exists (
   where ptm.profile_id = p.id
     and ptm.module_key = 'ftth'
 );
+
+create or replace function private.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and role = 'admin'
+      and is_active = true
+  );
+$$;
+
+create or replace function private.is_active_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and is_active = true
+  );
+$$;
 
 create or replace function private.can_access_task_module(p_module_key text)
 returns boolean

@@ -264,6 +264,15 @@ svg {
   margin-top: 16px;
 }
 
+.module-shell {
+  min-height: 100vh;
+  padding: 22px;
+}
+
+.module-shell__topbar {
+  top: 0;
+}
+
 .app-shell.is-sidebar-collapsed .sidebar {
   padding-inline: 16px;
 }

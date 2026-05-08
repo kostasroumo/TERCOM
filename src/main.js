@@ -888,6 +888,10 @@ function getVisibleModuleTaskCounts() {
   return counts;
 }
 
+function canSwitchBetweenModules() {
+  return getVisibleTaskModules().length > 1 || state.currentRole === "admin";
+}
+
 function renderAuthGate() {
   if (runtime.loading) {
     app.innerHTML = `
@@ -1817,6 +1821,15 @@ function render() {
   }
 
   const route = getRoute();
+  const visibleModules = getVisibleTaskModules();
+  if (route.view === "module-hub" && visibleModules.length === 1) {
+    const onlyModuleRoute = buildModuleDashboardRoute(visibleModules[0].key);
+    if (window.location.hash !== onlyModuleRoute) {
+      window.location.hash = onlyModuleRoute;
+      return;
+    }
+  }
+
   const selectedModuleKey = getSelectedModuleKey(route);
   const selectedModule = getTaskModuleByKey(selectedModuleKey);
   const visibleTasks = selectedModule ? getVisibleTasks(selectedModuleKey) : [];
@@ -1843,6 +1856,70 @@ function render() {
               : `${selectedModule?.name || "Workspace"} · Dashboard`;
   const canOpenModuleViews = !!selectedModule;
 
+  if (route.view === "module-hub") {
+    app.innerHTML = `
+      <section class="module-shell">
+        <header class="topbar surface module-shell__topbar">
+          <div>
+            <p class="eyebrow">Workspace Selector</p>
+            <h1>Επιλογή εργασίας</h1>
+          </div>
+
+          <div class="topbar__controls">
+            ${
+              showManualSwitches
+                ? `
+                  <label class="field field--compact">
+                    <span>Ρόλος</span>
+                    <select data-role-switch>
+                      ${Object.entries(ROLE_LABELS)
+                        .map(([value, label]) => `<option value="${value}"${state.currentRole === value ? " selected" : ""}>${escapeHtml(label)}</option>`)
+                        .join("")}
+                    </select>
+                  </label>
+
+                  <label class="field field--compact">
+                    <span>Χρήστης</span>
+                    <select data-user-switch>
+                      ${getCurrentRoleUsers()
+                        .map((user) => `<option value="${user.id}"${state.currentUserId === user.id ? " selected" : ""}>${escapeHtml(user.name)}</option>`)
+                        .join("")}
+                    </select>
+                  </label>
+                `
+                : `
+                  <div class="topbar-session">
+                    <span class="pill pill--pipeline-leitourgies-inwn">${escapeHtml(roleLabel)}</span>
+                    <div class="topbar-session__meta">
+                      <strong>${escapeHtml(currentUser.name)}</strong>
+                      ${renderBootstrapIndicator(currentUser)}
+                    </div>
+                  </div>
+                `
+            }
+
+            ${
+              canManageUsers()
+                ? `<button class="button button--ghost" data-route="#/users">Χρήστες</button>`
+                : ""
+            }
+            ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
+          </div>
+        </header>
+
+        ${
+          runtime.syncError && isSupabaseMode()
+            ? `<div class="alert-banner alert-banner--warning workspace-alert"><p>${escapeHtml(runtime.syncError)}</p></div>`
+            : ""
+        }
+
+        ${renderView(route, visibleTasks, filteredTasks, currentUser, selectedModule)}
+      </section>
+    `;
+
+    return;
+  }
+
   app.innerHTML = `
     <div class="app-shell${state.ui.sidebarCollapsed ? " is-sidebar-collapsed" : ""}">
       <aside class="sidebar">
@@ -1868,10 +1945,6 @@ function render() {
         </div>
 
         <nav class="nav">
-          <button class="nav-link${route.view === "module-hub" ? " is-active" : ""}" data-route="#/dashboard">
-            <span class="nav-link__icon">${icon("dashboard")}</span>
-            <span class="nav-link__label">Εργασίες</span>
-          </button>
           ${
             canOpenModuleViews
               ? `
@@ -1883,7 +1956,7 @@ function render() {
                   <span class="nav-link__icon">${icon("tasks")}</span>
                   <span class="nav-link__label">Tasks</span>
                 </button>
-              `
+                `
               : ""
           }
           ${
@@ -1949,6 +2022,11 @@ function render() {
                 `
             }
 
+            ${
+              canSwitchBetweenModules()
+                ? `<button class="button button--ghost" data-route="#/dashboard">Επιλογή εργασίας</button>`
+                : ""
+            }
             ${canCreateTasks() && canOpenModuleViews && route.view !== "module-hub" && route.view !== "users" ? `<button class="button button--secondary" data-open-create>Νέα εργασία</button>` : ""}
             ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
           </div>
