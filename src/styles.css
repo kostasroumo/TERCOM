@@ -1508,12 +1508,12 @@ svg {
   grid-column: 1 / -1;
 }
 
-.inactive-users-panel {
+.directory-panel {
   display: grid;
   gap: 18px;
 }
 
-.inactive-users-panel summary {
+.directory-panel summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1522,15 +1522,15 @@ svg {
   list-style: none;
 }
 
-.inactive-users-panel summary::-webkit-details-marker {
+.directory-panel summary::-webkit-details-marker {
   display: none;
 }
 
-.inactive-users-panel summary h2 {
+.directory-panel summary h2 {
   margin: 8px 0 0;
 }
 
-.inactive-users-panel__count {
+.directory-panel__count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1543,7 +1543,7 @@ svg {
   font-weight: 700;
 }
 
-.inactive-users-panel__copy {
+.directory-panel__copy {
   margin: 0;
   color: var(--text-soft);
   line-height: 1.6;

@@ -170,29 +170,31 @@ export function AdminUsers({ users, modules, currentUserId, pending, error, mess
       </section>
 
       <section class="surface">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">Directory</p>
-            <h2>Ενεργοί χρήστες</h2>
+        <details class="directory-panel" open>
+          <summary>
+            <div>
+              <p class="eyebrow">Directory</p>
+              <h2>Ενεργοί χρήστες</h2>
+            </div>
+            <span class="directory-panel__count">${activeUsers.length}</span>
+          </summary>
+          <p class="directory-panel__copy">Οι ενεργοί λογαριασμοί μπορούν να συνδεθούν κανονικά και να βλέπουν μόνο τα modules που τους έχουν δοθεί.</p>
+          <div class="admin-user-list">
+            ${activeRows || `<div class="empty-state"><p>Δεν βρέθηκαν ενεργοί χρήστες.</p></div>`}
           </div>
-          <p class="section-copy">${activeUsers.length} ενεργοί · ${inactiveUsers.length} ανενεργοί</p>
-        </div>
-
-        <div class="admin-user-list">
-          ${activeRows || `<div class="empty-state"><p>Δεν βρέθηκαν ενεργοί χρήστες.</p></div>`}
-        </div>
+        </details>
       </section>
 
       <section class="surface">
-        <details class="inactive-users-panel">
+        <details class="directory-panel">
           <summary>
             <div>
               <p class="eyebrow">Inactive Directory</p>
               <h2>Ανενεργοποιημένοι χρήστες</h2>
             </div>
-            <span class="inactive-users-panel__count">${inactiveUsers.length}</span>
+            <span class="directory-panel__count">${inactiveUsers.length}</span>
           </summary>
-          <p class="inactive-users-panel__copy">Οι λογαριασμοί αυτοί δεν μπορούν να συνδεθούν, αλλά κρατιούνται για ιστορικό, αναθέσεις και εύκολη επανενεργοποίηση όταν χρειαστεί.</p>
+          <p class="directory-panel__copy">Οι λογαριασμοί αυτοί δεν μπορούν να συνδεθούν, αλλά κρατιούνται για ιστορικό, αναθέσεις και εύκολη επανενεργοποίηση όταν χρειαστεί.</p>
           <div class="admin-user-list">
             ${inactiveRows || `<div class="empty-state"><p>Δεν υπάρχουν ανενεργοί χρήστες.</p></div>`}
           </div>
