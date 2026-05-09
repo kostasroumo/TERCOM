@@ -2,6 +2,7 @@ import { TaskCard } from "./components/TaskCard.js";
 import { TaskDetail } from "./components/TaskDetail.js";
 import { TaskTable } from "./components/TaskTable.js";
 import { AdminUsers } from "./components/AdminUsers.js";
+import { AdminTaskReport } from "./components/AdminTaskReport.js";
 import { ModuleHub } from "./components/ModuleHub.js";
 import { MATERIAL_CATALOG_SEED } from "./data/materialCatalog.js";
 import { TASK_MODULES_SEED, getLocalVisibleModuleKeys } from "./data/taskModules.js";
@@ -28,6 +29,7 @@ import {
   deleteProfileContract,
   fetchActiveProfileContract,
   fetchActiveProfileContracts,
+  fetchSupabaseAdminTaskReport,
   fetchSupabaseBootstrapData,
   fetchSupabaseCatalogs,
   fetchSupabaseTaskSummaries,
@@ -39,6 +41,7 @@ import {
   uploadTaskFiles,
   uploadTaskPhotos
 } from "./lib/supabaseBackend.js";
+import { exportAdminTaskReportWorkbook } from "./lib/adminTaskReportExport.js";
 
 const STORAGE_KEY = "birol-field-ops-prototype-v11";
 const COMPANY_LOGO_SRC = "/src/assets/tercom.jpg";
@@ -81,6 +84,13 @@ const runtime = {
   adminUsersError: "",
   adminUsersMessage: "",
   activeAdminUsersLoad: null,
+  adminTaskReportRows: [],
+  adminTaskReportError: "",
+  adminTaskReportPending: false,
+  adminTaskReportExportPending: false,
+  adminTaskReportSignature: "",
+  activeAdminTaskReportLoad: null,
+  activeAdminTaskReportSignature: "",
   activeTaskDetailLoads: new Map(),
   activeTaskListLoad: null,
   activeCatalogLoad: null
@@ -111,6 +121,7 @@ function loadState() {
     parsed.ui = {
       activeTab: "main",
       activeModuleKey: "ftth",
+      adminTaskReport: createDefaultAdminTaskReportState(),
       showCreateModal: false,
       sidebarCollapsed: false,
       expandedAdminAssignee: "partner-1",
@@ -142,12 +153,112 @@ function saveState() {
 function resetUiStateForLiveSession() {
   state.ui.showCreateModal = false;
   state.ui.activeTab = "main";
+  state.ui.adminTaskReport = createDefaultAdminTaskReportState();
   state.ui.validationComment = "";
   state.ui.cancellationComment = "";
   state.ui.materialSearch = "";
   state.ui.selectedMaterialId = "";
   state.ui.workSearch = "";
   state.ui.selectedWorkId = "";
+}
+
+function formatDateInputValue(value) {
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function shiftCalendarDays(baseValue, amount) {
+  const date = baseValue instanceof Date ? new Date(baseValue.getTime()) : new Date(baseValue);
+  date.setDate(date.getDate() + amount);
+  return date;
+}
+
+function createDefaultAdminTaskReportState(userId = "") {
+  const today = new Date();
+  return {
+    userId,
+    moduleKey: "all",
+    datePreset: "last30",
+    fromDate: formatDateInputValue(shiftCalendarDays(today, -29)),
+    toDate: formatDateInputValue(today),
+    statusKeys: ["completed", "completed_with_pending"]
+  };
+}
+
+function normalizeAdminTaskReportState(source = {}, fallbackUserId = "") {
+  const defaults = createDefaultAdminTaskReportState(fallbackUserId || source.userId || "");
+  const allowedStatuses = new Set(Object.keys(STATUS_META));
+  const hasExplicitStatusKeys = Array.isArray(source.statusKeys);
+  const normalizedStatusKeys = [...new Set(Array.isArray(source.statusKeys) ? source.statusKeys.filter((statusKey) => allowedStatuses.has(statusKey)) : [])];
+  const nextState = {
+    ...defaults,
+    ...source,
+    userId: source.userId || fallbackUserId || defaults.userId,
+    moduleKey: source.moduleKey || defaults.moduleKey,
+    datePreset: source.datePreset || defaults.datePreset,
+    fromDate: source.fromDate || defaults.fromDate,
+    toDate: source.toDate || defaults.toDate,
+    statusKeys: hasExplicitStatusKeys ? normalizedStatusKeys : defaults.statusKeys
+  };
+
+  if (nextState.fromDate && nextState.toDate && nextState.fromDate > nextState.toDate) {
+    const originalFromDate = nextState.fromDate;
+    nextState.fromDate = nextState.toDate;
+    nextState.toDate = originalFromDate;
+  }
+
+  return nextState;
+}
+
+function getAdminTaskReportState(userId = "") {
+  const normalizedState = normalizeAdminTaskReportState(state.ui.adminTaskReport || {}, userId);
+  state.ui.adminTaskReport = normalizedState;
+  return normalizedState;
+}
+
+function setAdminTaskReportState(patch = {}, userId = "") {
+  state.ui.adminTaskReport = normalizeAdminTaskReportState(
+    {
+      ...getAdminTaskReportState(userId),
+      ...patch,
+      userId: patch.userId || userId || state.ui.adminTaskReport?.userId || ""
+    },
+    userId
+  );
+}
+
+function applyAdminTaskReportPreset(preset, userId = "") {
+  const currentState = getAdminTaskReportState(userId);
+  const today = new Date();
+  let nextFromDate = currentState.fromDate;
+  let nextToDate = currentState.toDate;
+
+  if (preset === "last7") {
+    nextFromDate = formatDateInputValue(shiftCalendarDays(today, -6));
+    nextToDate = formatDateInputValue(today);
+  } else if (preset === "last30") {
+    nextFromDate = formatDateInputValue(shiftCalendarDays(today, -29));
+    nextToDate = formatDateInputValue(today);
+  } else if (preset === "month") {
+    nextFromDate = formatDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1));
+    nextToDate = formatDateInputValue(today);
+  }
+
+  setAdminTaskReportState(
+    {
+      datePreset: preset,
+      fromDate: nextFromDate,
+      toDate: nextToDate
+    },
+    userId
+  );
 }
 
 function resetTaskFilters() {
@@ -357,9 +468,17 @@ function clearSupabaseLiveState() {
   runtime.adminUsersError = "";
   runtime.adminUsersMessage = "";
   runtime.activeAdminUsersLoad = null;
+  runtime.adminTaskReportRows = [];
+  runtime.adminTaskReportError = "";
+  runtime.adminTaskReportPending = false;
+  runtime.adminTaskReportExportPending = false;
+  runtime.adminTaskReportSignature = "";
+  runtime.activeAdminTaskReportLoad = null;
+  runtime.activeAdminTaskReportSignature = "";
   state.currentRole = "admin";
   state.currentUserId = USER_DIRECTORY.admin[0]?.id || "";
   state.ui.activeModuleKey = "ftth";
+  state.ui.adminTaskReport = createDefaultAdminTaskReportState();
   resetUiStateForLiveSession();
   saveState();
 }
@@ -608,6 +727,10 @@ function buildModuleReportRoute(moduleKey) {
   return `#/module/${encodeURIComponent(moduleKey)}/reports/open-tasks`;
 }
 
+function buildAdminUserReportRoute(userId) {
+  return `#/users/${encodeURIComponent(userId)}/report`;
+}
+
 async function ensureAdminUsersLoaded() {
   if (!canManageUsers()) {
     return;
@@ -684,6 +807,106 @@ function upsertManagedProfileInRuntime(user) {
   }
 
   runtime.profiles.sort((left, right) => (left.name || left.email).localeCompare(right.name || right.email, "el"));
+}
+
+function getManagedUserById(userId) {
+  if (!userId) {
+    return null;
+  }
+
+  return runtime.adminUsers.find((user) => user.id === userId) || null;
+}
+
+function buildAdminTaskReportSignature(userId, filters = {}) {
+  return JSON.stringify({
+    userId,
+    moduleKey: filters.moduleKey || "all",
+    fromDate: filters.fromDate || "",
+    toDate: filters.toDate || "",
+    statusKeys: [...new Set(filters.statusKeys || [])].sort()
+  });
+}
+
+function dateInputToBoundaryIso(value, boundary = "start") {
+  if (!value) {
+    return "";
+  }
+
+  const [year, month, day] = String(value)
+    .split("-")
+    .map((segment) => Number(segment));
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  const date =
+    boundary === "end"
+      ? new Date(year, month - 1, day, 23, 59, 59, 999)
+      : new Date(year, month - 1, day, 0, 0, 0, 0);
+
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+async function ensureAdminTaskReportLoaded(userId, forceReload = false) {
+  if (!canManageUsers() || !userId) {
+    return;
+  }
+
+  const filters = getAdminTaskReportState(userId);
+  const signature = buildAdminTaskReportSignature(userId, filters);
+
+  if (!forceReload && runtime.adminTaskReportSignature === signature && !runtime.adminTaskReportError) {
+    return;
+  }
+
+  if (!forceReload && runtime.activeAdminTaskReportLoad && runtime.activeAdminTaskReportSignature === signature) {
+    return runtime.activeAdminTaskReportLoad;
+  }
+
+  if (!(filters.statusKeys || []).length) {
+    runtime.adminTaskReportSignature = signature;
+    runtime.adminTaskReportRows = [];
+    runtime.adminTaskReportError = "";
+    runtime.adminTaskReportPending = false;
+    return;
+  }
+
+  runtime.adminTaskReportPending = true;
+  runtime.adminTaskReportError = "";
+  runtime.adminTaskReportSignature = signature;
+  runtime.activeAdminTaskReportSignature = signature;
+  runtime.adminTaskReportRows = [];
+
+  runtime.activeAdminTaskReportLoad = (async () => {
+    const payload = await fetchSupabaseAdminTaskReport(
+      runtime.supabase,
+      {
+        assignedUserId: userId,
+        moduleKey: filters.moduleKey,
+        statusKeys: filters.statusKeys,
+        completedFrom: dateInputToBoundaryIso(filters.fromDate, "start"),
+        completedTo: dateInputToBoundaryIso(filters.toDate, "end")
+      },
+      runtime.session
+    );
+
+    runtime.adminTaskReportRows = (payload.tasks || []).map(normalizeTask);
+    runtime.adminTaskReportError = "";
+    saveState();
+    render();
+  })();
+
+  try {
+    await runtime.activeAdminTaskReportLoad;
+  } catch (error) {
+    runtime.adminTaskReportError = error.message;
+    render();
+  } finally {
+    runtime.adminTaskReportPending = false;
+    runtime.activeAdminTaskReportLoad = null;
+    runtime.activeAdminTaskReportSignature = "";
+    render();
+  }
 }
 
 async function handleAdminUserCreate(formData) {
@@ -1146,6 +1369,16 @@ function getRoute() {
     return { view: "users" };
   }
 
+  if (hash.startsWith("users/")) {
+    const segments = hash.split("/");
+    if (segments[2] === "report") {
+      return {
+        view: "admin-user-report",
+        userId: decodeURIComponent(segments[1] || "")
+      };
+    }
+  }
+
   if (hash === "reports/open-tasks") {
     return { view: "report", moduleKey: state.ui.activeModuleKey || "ftth", reportType: "open-tasks" };
   }
@@ -1458,6 +1691,7 @@ function normalizeState(sourceState) {
     inventory: (sourceState.inventory?.length ? sourceState.inventory : MATERIAL_CATALOG_SEED).map(normalizeInventoryItem),
     ui: {
       activeModuleKey: "ftth",
+      adminTaskReport: createDefaultAdminTaskReportState(),
       materialSearch: "",
       selectedMaterialId: "",
       workSearch: "",
@@ -1949,6 +2183,7 @@ function render() {
   const visibleTasks = selectedModule ? getVisibleTasks(selectedModuleKey) : [];
   const filteredTasks = selectedModule ? getFilteredTasks(selectedModuleKey) : [];
   const currentUser = getCurrentUser();
+  const selectedManagedUser = route.view === "admin-user-report" ? getManagedUserById(route.userId) : null;
   const showManualSwitches = !isSupabaseMode();
   const isSessionHydrating = isSupabaseMode() && hasAuthSession() && !hasLiveProfile();
   const roleLabel = isSessionHydrating
@@ -1961,6 +2196,8 @@ function render() {
       ? "Επιλογή εργασίας"
       : route.view === "users"
         ? "Διαχείριση χρηστών"
+        : route.view === "admin-user-report"
+          ? `${selectedManagedUser?.displayName || selectedManagedUser?.email || "Χρήστης"} · Αναφορά εργασιών`
         : route.view === "report"
           ? `${selectedModule?.name || "Workspace"} · Αναφορά ανοιχτών εργασιών`
           : route.view === "tasks"
@@ -1969,7 +2206,7 @@ function render() {
               ? `${selectedModule?.name || "Workspace"} · Καρτέλα εργασίας`
               : `${selectedModule?.name || "Workspace"} · Dashboard`;
   const canOpenModuleViews = !!selectedModule;
-  const useStandaloneShell = route.view === "module-hub" || route.view === "users";
+  const useStandaloneShell = route.view === "module-hub" || route.view === "users" || route.view === "admin-user-report";
   const moduleHubButtonLabel = visibleModules.length > 1 || state.currentRole === "admin" ? "Αλλαγή εργασίας" : "Αρχική";
 
   if (useStandaloneShell) {
@@ -2017,6 +2254,8 @@ function render() {
             ${
               route.view === "users"
                 ? `<button class="button button--ghost" data-route="#/dashboard">Πίσω στις εργασίες</button>`
+                : route.view === "admin-user-report"
+                  ? `<button class="button button--ghost" data-route="#/users">Πίσω στους χρήστες</button>`
                 : ""
             }
             ${isSupabaseMode() ? `<button class="button button--ghost" data-sign-out>Αποσύνδεση</button>` : ""}
@@ -2226,6 +2465,67 @@ function renderView(route, visibleTasks, filteredTasks, currentUser, selectedMod
       pending: runtime.adminUsersPending,
       error: runtime.adminUsersError,
       message: runtime.adminUsersMessage
+    });
+  }
+
+  if (route.view === "admin-user-report") {
+    if (!canManageUsers()) {
+      return `
+        <section class="surface empty-screen">
+          <h2>Δεν έχεις πρόσβαση</h2>
+          <p>Η αναφορά εργασιών χρήστη είναι διαθέσιμη μόνο στον admin.</p>
+        </section>
+      `;
+    }
+
+    if (!runtime.adminUsersLoaded) {
+      ensureAdminUsersLoaded().catch((error) => {
+        runtime.adminUsersError = error.message;
+        render();
+      });
+
+      return `
+        <section class="surface empty-screen">
+          <h2>Φόρτωση στοιχείων χρήστη</h2>
+          <p>Ανακτούμε τη λίστα χρηστών πριν ανοίξουμε την εξατομικευμένη αναφορά.</p>
+        </section>
+      `;
+    }
+
+    const reportUser = getManagedUserById(route.userId);
+    if (!reportUser) {
+      return `
+        <section class="surface empty-screen">
+          <h2>Ο χρήστης δεν βρέθηκε</h2>
+          <p>Η αναφορά δεν μπορεί να ανοίξει γιατί ο λογαριασμός δεν είναι διαθέσιμος στη διαχείριση χρηστών.</p>
+          <button class="button button--ghost" data-route="#/users">Πίσω στους χρήστες</button>
+        </section>
+      `;
+    }
+
+    const reportFilters = getAdminTaskReportState(reportUser.id);
+    const reportSignature = buildAdminTaskReportSignature(reportUser.id, reportFilters);
+
+    if (!runtime.adminTaskReportPending && runtime.adminTaskReportSignature !== reportSignature) {
+      ensureAdminTaskReportLoaded(reportUser.id).catch((error) => {
+        runtime.adminTaskReportError = error.message;
+        runtime.adminTaskReportPending = false;
+        render();
+      });
+    }
+
+    return AdminTaskReport({
+      user: reportUser,
+      users: runtime.adminUsers,
+      modules: getAllTaskModules(),
+      filters: reportFilters,
+      tasks: runtime.adminTaskReportRows.map((task) => ({
+        ...task,
+        detailRoute: buildModuleTaskDetailRoute(task.moduleKey || reportFilters.moduleKey || "ftth", task.id)
+      })),
+      pending: runtime.adminTaskReportPending,
+      error: runtime.adminTaskReportError,
+      exportPending: runtime.adminTaskReportExportPending
     });
   }
 
@@ -2644,6 +2944,60 @@ function handleClick(event) {
     return;
   }
 
+  const adminReportPresetTarget = event.target.closest("[data-admin-report-preset]");
+  if (adminReportPresetTarget) {
+    const route = getRoute();
+    applyAdminTaskReportPreset(adminReportPresetTarget.getAttribute("data-admin-report-preset") || "custom", route.userId || state.ui.adminTaskReport?.userId || "");
+    saveState();
+    render();
+    return;
+  }
+
+  if (event.target.closest("[data-export-admin-task-report]")) {
+    const route = getRoute();
+    const reportUser = getManagedUserById(route.userId || state.ui.adminTaskReport?.userId || "");
+    if (!reportUser) {
+      window.alert("Δεν βρέθηκε ο χρήστης για το export.");
+      return;
+    }
+
+    if (!runtime.adminTaskReportRows.length) {
+      window.alert("Δεν υπάρχουν γραμμές για export με τα τρέχοντα φίλτρα.");
+      return;
+    }
+
+    runtime.adminTaskReportExportPending = true;
+    render();
+
+    exportAdminTaskReportWorkbook({
+      user: reportUser,
+      tasks: runtime.adminTaskReportRows,
+      modules: getAllTaskModules(),
+      filters: getAdminTaskReportState(reportUser.id)
+    })
+      .catch((error) => {
+        window.alert(`Το export σε Excel απέτυχε: ${error.message}`);
+      })
+      .finally(() => {
+        runtime.adminTaskReportExportPending = false;
+        render();
+      });
+    return;
+  }
+
+  if (event.target.closest("[data-retry-admin-task-report]")) {
+    const route = getRoute();
+    runtime.adminTaskReportError = "";
+    runtime.adminTaskReportSignature = "";
+    render();
+    ensureAdminTaskReportLoaded(route.userId || state.ui.adminTaskReport?.userId || "", true).catch((error) => {
+      runtime.adminTaskReportError = error.message;
+      runtime.adminTaskReportPending = false;
+      render();
+    });
+    return;
+  }
+
   if (event.target.closest("[data-sign-out]")) {
     if (isSupabaseMode() && runtime.supabase) {
       runtime.loading = true;
@@ -2770,6 +3124,51 @@ function handleClick(event) {
 }
 
 function handleChange(event) {
+  if (event.target.matches("[data-admin-report-user]")) {
+    const nextUserId = event.target.value;
+    if (!nextUserId) {
+      return;
+    }
+
+    setAdminTaskReportState({ userId: nextUserId }, nextUserId);
+    runtime.adminTaskReportError = "";
+    runtime.adminTaskReportSignature = "";
+    saveState();
+    window.location.hash = buildAdminUserReportRoute(nextUserId);
+    return;
+  }
+
+  if (event.target.matches("[data-admin-report-filter]")) {
+    const route = getRoute();
+    const filterKey = event.target.getAttribute("data-admin-report-filter");
+    const nextValue = event.target.value;
+    const nextPatch = filterKey === "fromDate" || filterKey === "toDate"
+      ? { [filterKey]: nextValue, datePreset: "custom" }
+      : { [filterKey]: nextValue };
+
+    setAdminTaskReportState(nextPatch, route.userId || state.ui.adminTaskReport?.userId || "");
+    runtime.adminTaskReportError = "";
+    saveState();
+    render();
+    return;
+  }
+
+  if (event.target.matches("[data-admin-report-status]")) {
+    const route = getRoute();
+    const currentState = getAdminTaskReportState(route.userId || state.ui.adminTaskReport?.userId || "");
+    const nextStatusKeys = new Set(currentState.statusKeys || []);
+    if (event.target.checked) {
+      nextStatusKeys.add(event.target.value);
+    } else {
+      nextStatusKeys.delete(event.target.value);
+    }
+    setAdminTaskReportState({ statusKeys: [...nextStatusKeys] }, route.userId || state.ui.adminTaskReport?.userId || "");
+    runtime.adminTaskReportError = "";
+    saveState();
+    render();
+    return;
+  }
+
   if (event.target.matches("[data-role-switch]")) {
     state.currentRole = event.target.value;
     state.currentUserId = USER_DIRECTORY[state.currentRole][0].id;

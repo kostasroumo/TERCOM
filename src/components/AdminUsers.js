@@ -5,6 +5,10 @@ const ROLE_OPTIONS = [
   { value: "partner", label: "Partner" }
 ];
 
+function buildAdminUserReportRoute(userId) {
+  return `#/users/${encodeURIComponent(userId)}/report`;
+}
+
 function renderModuleCheckboxes(modules, selectedKeys = [], pending = false, role = "partner", namePrefix = "moduleKeys") {
   const selected = new Set(role === "admin" ? modules.map((module) => module.key) : selectedKeys);
 
@@ -128,6 +132,7 @@ function renderUserRow(user, modules, currentUserId, pending, mode = "active") {
         ${isCurrentUser ? `<span>Τρέχων λογαριασμός admin</span>` : ""}
       </div>
       <div class="admin-user-row__actions">
+        <button class="button button--ghost" type="button" data-route="${escapeHtml(buildAdminUserReportRoute(user.id))}">Αναφορά εργασιών</button>
         <button class="button ${mode === "inactive" ? "" : "button--secondary"}" type="submit" ${pending ? "disabled" : ""}>${actionLabel}</button>
       </div>
     </form>

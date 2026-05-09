@@ -122,6 +122,38 @@ function toNullableIsoDateTime(value) {
   return isoValue || null;
 }
 
+function resolveAdminReportDate(row) {
+  return row?.completed_at || row?.end_date || "";
+}
+
+function isWithinAdminReportDateRange(row, completedFrom = "", completedTo = "") {
+  const effectiveDate = resolveAdminReportDate(row);
+  if (!effectiveDate) {
+    return false;
+  }
+
+  const effectiveTime = new Date(effectiveDate).getTime();
+  if (Number.isNaN(effectiveTime)) {
+    return false;
+  }
+
+  if (completedFrom) {
+    const fromTime = new Date(completedFrom).getTime();
+    if (!Number.isNaN(fromTime) && effectiveTime < fromTime) {
+      return false;
+    }
+  }
+
+  if (completedTo) {
+    const toTime = new Date(completedTo).getTime();
+    if (!Number.isNaN(toTime) && effectiveTime > toTime) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function normalizeDashboardBootstrapPayload(payload) {
   const rawProfile = payload?.profile && payload.profile !== "null" ? payload.profile : null;
 
@@ -182,6 +214,18 @@ async function fetchTaskRelatedData(client, taskIds) {
     safetyMap: groupByTaskId(safetyRows),
     photoUrlMap,
     fileUrlMap
+  };
+}
+
+async function fetchTaskReportRelatedData(client, taskIds) {
+  const [materialRows, workItemRows] = await Promise.all([
+    fetchCollection(client, "task_materials", taskIds, "*", "created_at"),
+    fetchCollection(client, "task_work_items", taskIds, "*", "created_at")
+  ]);
+
+  return {
+    materialsMap: groupByTaskId(materialRows),
+    workItemsMap: groupByTaskId(workItemRows)
   };
 }
 
@@ -737,6 +781,106 @@ export async function fetchSupabaseTaskDetail(client, taskId, sessionOverride = 
     ...relatedData,
     detailLoaded: true
   });
+}
+
+export async function fetchSupabaseAdminTaskReport(client, filters = {}, sessionOverride = null) {
+  const session = sessionOverride || (await client.auth.getSession()).data.session;
+
+  if (!session) {
+    throw new Error("Δεν υπάρχει ενεργό session.");
+  }
+
+  const currentProfileRow = assertNoError(
+    await client
+      .from("profiles")
+      .select("id, email, role, display_name, company_name, title, phone, is_active")
+      .eq("id", session.user.id)
+      .single(),
+    "Fetch current profile"
+  );
+
+  const currentProfile = mapProfileRow(currentProfileRow);
+  if (currentProfile.role !== "admin") {
+    throw new Error("Η αναφορά χρηστών είναι διαθέσιμη μόνο στον admin.");
+  }
+
+  const assignedUserId = String(filters.assignedUserId || "").trim();
+  if (!assignedUserId) {
+    throw new Error("Δεν βρέθηκε ο χρήστης για την αναφορά.");
+  }
+
+  const targetProfileRow = assertNoError(
+    await client
+      .from("profiles")
+      .select("id, email, role, display_name, company_name, title, phone, is_active")
+      .eq("id", assignedUserId)
+      .single(),
+    "Fetch report target profile"
+  );
+
+  let tasksQuery = client
+    .from("tasks")
+    .select("*")
+    .eq("assigned_user_id", assignedUserId)
+    .order("completed_at", { ascending: false });
+
+  const moduleKey = String(filters.moduleKey || "").trim();
+  if (moduleKey && moduleKey !== "all") {
+    tasksQuery = tasksQuery.eq("module_key", moduleKey);
+  }
+
+  const statusKeys = [...new Set((filters.statusKeys || []).filter(Boolean))];
+  if (statusKeys.length) {
+    tasksQuery = tasksQuery.in("status", statusKeys);
+  }
+
+  const rawTaskRows = assertNoError(await tasksQuery, "Fetch admin task report");
+  const taskRows = rawTaskRows.filter((row) => isWithinAdminReportDateRange(row, filters.completedFrom, filters.completedTo));
+  const taskIds = taskRows.map((row) => row.id);
+  const relatedData = await fetchTaskReportRelatedData(client, taskIds);
+
+  const uniqueProfileIds = [...new Set([currentProfile.id, assignedUserId, ...taskRows.map((row) => row.assigned_user_id).filter(Boolean)])];
+  const profileRows = uniqueProfileIds.length
+    ? assertNoError(
+        await client
+          .from("profiles")
+          .select("id, email, role, display_name, company_name, title, phone, is_active")
+          .in("id", uniqueProfileIds),
+        "Fetch admin task report profiles"
+      )
+    : [];
+
+  const profiles = profileRows.map(mapProfileRow);
+  const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+  if (!profileMap.has(currentProfile.id)) {
+    profileMap.set(currentProfile.id, currentProfile);
+  }
+  if (!profileMap.has(assignedUserId)) {
+    profileMap.set(assignedUserId, mapProfileRow(targetProfileRow));
+  }
+
+  const emptyGroupMap = new Map();
+  const emptyUrlMap = new Map();
+
+  return {
+    targetProfile: mapProfileRow(targetProfileRow),
+    tasks: taskRows.map((taskRow) =>
+      mapTaskRow(taskRow, {
+        profileMap,
+        historyMap: emptyGroupMap,
+        pipelineHistoryMap: emptyGroupMap,
+        fiberStageHistoryMap: emptyGroupMap,
+        photosMap: emptyGroupMap,
+        filesMap: emptyGroupMap,
+        materialsMap: relatedData.materialsMap,
+        workItemsMap: relatedData.workItemsMap,
+        safetyMap: emptyGroupMap,
+        photoUrlMap: emptyUrlMap,
+        fileUrlMap: emptyUrlMap,
+        detailLoaded: false
+      })
+    )
+  };
 }
 
 export async function signInWithPassword(client, email, password) {
