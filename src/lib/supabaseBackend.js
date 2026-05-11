@@ -643,7 +643,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
         .order("sort_order", { ascending: true }),
       "Fetch task modules"
     ),
-    assertNoError(await client.from("tasks").select("*").is("archived_at", null).order("updated_at", { ascending: false }), "Fetch tasks")
+    assertNoError(await client.from("tasks").select("*").order("updated_at", { ascending: false }), "Fetch tasks")
   ]);
 
   const profiles = profilesRows.map(mapProfileRow);
@@ -689,7 +689,7 @@ export async function fetchSupabaseBootstrapData(client, sessionOverride = null)
 }
 
 export async function fetchSupabaseTaskSummaries(client, profiles = []) {
-  const taskRows = assertNoError(await client.from("tasks").select("*").is("archived_at", null).order("updated_at", { ascending: false }), "Fetch tasks");
+  const taskRows = assertNoError(await client.from("tasks").select("*").order("updated_at", { ascending: false }), "Fetch tasks");
   const taskIds = taskRows.map((row) => row.id);
   const pipelineHistoryRows = await fetchCollection(client, "task_pipeline_history", taskIds, "*", "completed_at");
   const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
