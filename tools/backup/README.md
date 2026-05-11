@@ -5,7 +5,7 @@
 - database schema
 - database data
 - roles
-- storage buckets (`task-files`, `task-photos`)
+- storage buckets (`task-files`, `task-photos`, `profile-contracts`)
 - προαιρετικό upload του τελικού archive σε όποιο cloud remote έχεις στο `rclone`
 
 Το database backup/restore δουλεύει με native PostgreSQL tools (`pg_dump`, `pg_dumpall`, `psql`) και δεν χρειάζεται Docker.
@@ -91,6 +91,9 @@ npm run backup:supabase
 5. φτιάχνει `.tar.gz`
 6. το ανεβάζει σε cloud αν έχεις `rclone`
 
+Σημείωση:
+- Οι συμβάσεις / πιστοποιητικά χρηστών αποθηκεύονται στο bucket `profile-contracts`, οπότε πρέπει να συμπεριλαμβάνεται πάντα στο `BACKUP_STORAGE_BUCKETS`.
+
 ## Restore σε άδεια βάση
 
 ### 1. Αν είναι νέο Supabase project
@@ -127,6 +130,8 @@ npm run restore:supabase -- tools/backup/backups/archives/TO_BACKUP.tar.gz
 2. περνάει `schema.sql`
 3. περνάει `data.sql`
 4. ξανανεβάζει storage objects στο linked target project
+
+Αυτό περιλαμβάνει και τα PDF συμβάσεων από το `profile-contracts`, εφόσον υπάρχουν μέσα στο backup snapshot/archive.
 
 ## Scheduling
 

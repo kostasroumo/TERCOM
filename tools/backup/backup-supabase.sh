@@ -163,7 +163,7 @@ if [[ "${BACKUP_STORAGE:-true}" == "true" ]]; then
   fi
 
   echo "==> Downloading storage buckets from linked project"
-  IFS=',' read -r -a buckets <<< "${BACKUP_STORAGE_BUCKETS:-task-files,task-photos}"
+  IFS=',' read -r -a buckets <<< "${BACKUP_STORAGE_BUCKETS:-task-files,task-photos,profile-contracts}"
   for raw_bucket in "${buckets[@]}"; do
     bucket="$(echo "$raw_bucket" | xargs)"
     [[ -z "$bucket" ]] && continue
@@ -179,7 +179,7 @@ cat > "$SNAPSHOT_DIR/manifest.json" <<EOF
     "schema": "database/schema.sql",
     "data": "database/data.sql"
   },
-  "storageBuckets": [$(printf '"%s",' ${BACKUP_STORAGE_BUCKETS:-task-files,task-photos} | sed 's/,$//')],
+  "storageBuckets": [$(printf '"%s",' ${BACKUP_STORAGE_BUCKETS:-task-files,task-photos,profile-contracts} | sed 's/,$//')],
   "cloudUploadEnabled": $([[ -n "${CLOUD_REMOTE:-}" ]] && echo "true" || echo "false")
 }
 EOF
