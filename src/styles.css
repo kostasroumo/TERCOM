@@ -1778,6 +1778,26 @@ svg {
   gap: 18px;
 }
 
+.admin-users-create-shell {
+  padding: 22px 24px;
+  overflow: hidden;
+}
+
+.admin-users-create-shell .section-head {
+  align-items: start;
+}
+
+.admin-users-create-shell .section-copy {
+  max-width: 32ch;
+}
+
+.admin-users-note-grid,
+.admin-user-create__grid,
+.admin-user-create__modules,
+.admin-user-create__actions {
+  margin-top: 4px;
+}
+
 .admin-user-create {
   margin-top: 0;
 }
