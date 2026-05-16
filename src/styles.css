@@ -2042,6 +2042,8 @@ svg {
 .directory-panel {
   display: grid;
   gap: 16px;
+  padding: 20px 22px;
+  overflow: hidden;
 }
 
 .directory-panel summary {
@@ -2051,6 +2053,10 @@ svg {
   gap: 16px;
   cursor: pointer;
   list-style: none;
+}
+
+.directory-panel summary > div {
+  min-width: 0;
 }
 
 .directory-panel summary::-webkit-details-marker {
@@ -2065,9 +2071,10 @@ svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
-  min-height: 48px;
-  padding: 0 14px;
+  flex-shrink: 0;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0 12px;
   border-radius: 999px;
   background: rgba(18, 52, 70, 0.08);
   color: var(--primary-dark);
